@@ -3001,3 +3001,226 @@ class TestIoTThingTypeUpdateOperations:
         finally:
             iot.deprecate_thing_type(thingTypeName=name)
             iot.delete_thing_type(thingTypeName=name)
+
+
+class TestIoTCACertificateCrud:
+    """Tests for RegisterCACertificate, DescribeCACertificate, UpdateCACertificate,
+    DeleteCACertificate, ListCACertificates."""
+
+    def test_list_ca_certificates_returns_list(self, iot):
+        """ListCACertificates returns a certificates list."""
+        resp = iot.list_ca_certificates()
+        assert "certificates" in resp
+        assert isinstance(resp["certificates"], list)
+
+    def test_register_and_delete_ca_certificate(self, iot):
+        """Register a CA certificate and delete it."""
+        reg_code = iot.get_registration_code()["registrationCode"]
+        ca_key, ca_pem = _make_ca_cert()
+        verification_pem = _make_verification_cert(ca_key, reg_code)
+        resp = iot.register_ca_certificate(
+            caCertificate=ca_pem,
+            verificationCertificate=verification_pem,
+            setAsActive=True,
+        )
+        ca_id = resp["certificateId"]
+        assert "certificateArn" in resp
+        # Delete
+        iot.update_ca_certificate(certificateId=ca_id, newStatus="INACTIVE")
+        iot.delete_ca_certificate(certificateId=ca_id)
+        # Verify deleted
+        with pytest.raises(ClientError) as exc:
+            iot.describe_ca_certificate(certificateId=ca_id)
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+    def test_list_ca_certificates_includes_registered(self, iot):
+        """ListCACertificates includes a newly registered CA cert."""
+        reg_code = iot.get_registration_code()["registrationCode"]
+        ca_key, ca_pem = _make_ca_cert()
+        verification_pem = _make_verification_cert(ca_key, reg_code)
+        resp = iot.register_ca_certificate(
+            caCertificate=ca_pem,
+            verificationCertificate=verification_pem,
+            setAsActive=True,
+        )
+        ca_id = resp["certificateId"]
+        list_resp = iot.list_ca_certificates()
+        ca_ids = [c["certificateId"] for c in list_resp["certificates"]]
+        assert ca_id in ca_ids
+        iot.update_ca_certificate(certificateId=ca_id, newStatus="INACTIVE")
+        iot.delete_ca_certificate(certificateId=ca_id)
+
+    def test_list_certificates_by_ca(self, iot):
+        """ListCertificatesByCA returns certificates for a given CA."""
+        reg_code = iot.get_registration_code()["registrationCode"]
+        ca_key, ca_pem = _make_ca_cert()
+        verification_pem = _make_verification_cert(ca_key, reg_code)
+        ca_resp = iot.register_ca_certificate(
+            caCertificate=ca_pem,
+            verificationCertificate=verification_pem,
+            setAsActive=True,
+            allowAutoRegistration=True,
+        )
+        ca_id = ca_resp["certificateId"]
+        # Register a device cert under this CA
+        device_pem = _make_device_cert(ca_key)
+        dev_resp = iot.register_certificate(
+            certificatePem=device_pem,
+            caCertificatePem=ca_pem,
+        )
+        dev_id = dev_resp["certificateId"]
+        # List certs by CA
+        list_resp = iot.list_certificates_by_ca(caCertificateId=ca_id)
+        assert "certificates" in list_resp
+        cert_ids = [c["certificateId"] for c in list_resp["certificates"]]
+        assert dev_id in cert_ids
+        # Cleanup
+        iot.update_certificate(certificateId=dev_id, newStatus="INACTIVE")
+        iot.delete_certificate(certificateId=dev_id)
+        iot.update_ca_certificate(certificateId=ca_id, newStatus="INACTIVE")
+        iot.delete_ca_certificate(certificateId=ca_id)
+
+
+class TestIoTCertificateTransferOperations:
+    """Tests for TransferCertificate, AcceptCertificateTransfer,
+    CancelCertificateTransfer, RejectCertificateTransfer."""
+
+    def test_transfer_certificate(self, iot):
+        """Transfer a certificate to another account."""
+        cert = iot.create_keys_and_certificate(setAsActive=True)
+        cert_id = cert["certificateId"]
+        resp = iot.transfer_certificate(
+            certificateId=cert_id,
+            targetAwsAccount="987654321098",
+        )
+        assert "transferredCertificateArn" in resp
+        # Cancel the transfer to clean up
+        iot.cancel_certificate_transfer(certificateId=cert_id)
+        iot.update_certificate(certificateId=cert_id, newStatus="INACTIVE")
+        iot.delete_certificate(certificateId=cert_id)
+
+    def test_cancel_certificate_transfer(self, iot):
+        """Cancel a pending certificate transfer."""
+        cert = iot.create_keys_and_certificate(setAsActive=True)
+        cert_id = cert["certificateId"]
+        iot.transfer_certificate(
+            certificateId=cert_id,
+            targetAwsAccount="987654321098",
+        )
+        resp = iot.cancel_certificate_transfer(certificateId=cert_id)
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        iot.update_certificate(certificateId=cert_id, newStatus="INACTIVE")
+        iot.delete_certificate(certificateId=cert_id)
+
+    def test_accept_certificate_transfer(self, iot):
+        """Accept a pending certificate transfer."""
+        cert = iot.create_keys_and_certificate(setAsActive=True)
+        cert_id = cert["certificateId"]
+        iot.transfer_certificate(
+            certificateId=cert_id,
+            targetAwsAccount="987654321098",
+        )
+        resp = iot.accept_certificate_transfer(certificateId=cert_id)
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        iot.update_certificate(certificateId=cert_id, newStatus="INACTIVE")
+        iot.delete_certificate(certificateId=cert_id)
+
+    def test_reject_certificate_transfer(self, iot):
+        """Reject a pending certificate transfer."""
+        cert = iot.create_keys_and_certificate(setAsActive=True)
+        cert_id = cert["certificateId"]
+        iot.transfer_certificate(
+            certificateId=cert_id,
+            targetAwsAccount="987654321098",
+        )
+        resp = iot.reject_certificate_transfer(certificateId=cert_id)
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        iot.update_certificate(certificateId=cert_id, newStatus="INACTIVE")
+        iot.delete_certificate(certificateId=cert_id)
+
+
+class TestIoTDescribeEventConfigurationsExpanded:
+    """Tests for DescribeEventConfigurations and GetRegistrationCode."""
+
+    def test_describe_event_configurations_has_keys(self, iot):
+        """DescribeEventConfigurations returns eventConfigurations dict."""
+        resp = iot.describe_event_configurations()
+        assert "eventConfigurations" in resp
+        assert isinstance(resp["eventConfigurations"], dict)
+
+    def test_get_registration_code(self, iot):
+        """GetRegistrationCode returns a registration code string."""
+        resp = iot.get_registration_code()
+        assert "registrationCode" in resp
+        assert isinstance(resp["registrationCode"], str)
+        assert len(resp["registrationCode"]) > 0
+
+
+class TestIoTUpdateEventConfigurations:
+    """Tests for UpdateEventConfigurations."""
+
+    def test_update_event_configurations(self, iot):
+        """UpdateEventConfigurations can enable/disable event types."""
+        resp = iot.update_event_configurations(
+            eventConfigurations={
+                "THING": {"Enabled": True},
+                "THING_GROUP": {"Enabled": False},
+            }
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        # Verify via describe
+        desc = iot.describe_event_configurations()
+        assert "eventConfigurations" in desc
+        assert "THING" in desc["eventConfigurations"]
+
+
+class TestIoTRegisterCertificateWithoutCAExpanded:
+    """Additional test for RegisterCertificateWithoutCA."""
+
+    def test_register_certificate_without_ca_inactive(self, iot):
+        """Register a cert without CA in INACTIVE status."""
+        cert = iot.create_keys_and_certificate(setAsActive=True)
+        cert_id = cert["certificateId"]
+        pem = cert["certificatePem"]
+        iot.update_certificate(certificateId=cert_id, newStatus="INACTIVE")
+        iot.delete_certificate(certificateId=cert_id)
+        resp = iot.register_certificate_without_ca(certificatePem=pem, status="INACTIVE")
+        assert "certificateId" in resp
+        new_id = resp["certificateId"]
+        desc = iot.describe_certificate(certificateId=new_id)
+        assert desc["certificateDescription"]["status"] == "INACTIVE"
+        iot.delete_certificate(certificateId=new_id)
+
+
+class TestIoTThingCrud:
+    """Additional CRUD tests for CreateThing, DescribeThing, UpdateThing, DeleteThing."""
+
+    def test_create_thing_returns_arn_and_id(self, iot):
+        """CreateThing returns thingName, thingArn, thingId."""
+        name = _unique("thing")
+        resp = iot.create_thing(thingName=name)
+        assert resp["thingName"] == name
+        assert "thingArn" in resp
+        assert "thingId" in resp
+        iot.delete_thing(thingName=name)
+
+    def test_update_thing_attributes(self, iot):
+        """UpdateThing can set attributes on an existing thing."""
+        name = _unique("thing")
+        iot.create_thing(thingName=name)
+        iot.update_thing(
+            thingName=name,
+            attributePayload={"attributes": {"role": "sensor"}},
+        )
+        desc = iot.describe_thing(thingName=name)
+        assert desc["attributes"]["role"] == "sensor"
+        iot.delete_thing(thingName=name)
+
+    def test_delete_thing_then_describe_raises(self, iot):
+        """DeleteThing followed by DescribeThing raises ResourceNotFoundException."""
+        name = _unique("thing")
+        iot.create_thing(thingName=name)
+        iot.delete_thing(thingName=name)
+        with pytest.raises(ClientError) as exc:
+            iot.describe_thing(thingName=name)
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"

@@ -347,12 +347,29 @@ class TestEvaluateAlarm:
         scheduler._evaluate_alarm(backend, alarm, "123456789012", "us-east-1")
         backend.set_alarm_state.assert_not_called()
 
-    def test_skips_alarm_with_actions_disabled(self):
+    def test_alarm_transitions_state_when_actions_disabled(self):
+        """Alarms with actions_enabled=False should still evaluate and transition state."""
         scheduler = AlarmScheduler()
-        alarm = _make_alarm(actions_enabled=False)
+        now = datetime.now(tz=UTC)
+        alarm = _make_alarm(
+            actions_enabled=False,
+            state_value="OK",
+            comparison_operator="GreaterThanThreshold",
+            threshold=50.0,
+            period=60,
+            evaluation_periods=1,
+            alarm_actions=["arn:aws:sns:us-east-1:123456789012:my-topic"],
+        )
+        datum = _make_metric_datum("AWS/EC2", "CPUUtilization", 90.0, now - timedelta(seconds=30))
         backend = MagicMock()
+        backend.metric_data = [datum]
+        backend.aws_metric_data = []
+
         scheduler._evaluate_alarm(backend, alarm, "123456789012", "us-east-1")
-        backend.set_alarm_state.assert_not_called()
+
+        # State should transition even with actions disabled
+        backend.set_alarm_state.assert_called_once()
+        assert backend.set_alarm_state.call_args[0][3] == "ALARM"
 
     def test_transitions_ok_to_alarm(self):
         scheduler = AlarmScheduler()
@@ -473,6 +490,32 @@ class TestDispatchActions:
             )
         mock_publish.assert_called_once()
 
+    def test_alarm_dispatches_to_lambda_action(self):
+        """Alarm actions with Lambda ARNs should invoke _invoke_lambda_action."""
+        scheduler = AlarmScheduler()
+        alarm = _make_alarm(
+            alarm_actions=["arn:aws:lambda:us-east-1:123456789012:function:my-func"],
+        )
+        with patch.object(scheduler, "_invoke_lambda_action") as mock_lambda:
+            scheduler._dispatch_actions(alarm, "OK", "ALARM", "reason", "123456789012", "us-east-1")
+        mock_lambda.assert_called_once()
+        assert "my-func" in mock_lambda.call_args[0][0]
+
+    def test_alarm_ec2_automate_action_noop(self):
+        """Alarm actions with :automate: ARNs should be no-ops (no error)."""
+        scheduler = AlarmScheduler()
+        alarm = _make_alarm(
+            alarm_actions=["arn:aws:automate:us-east-1:ec2:stop"],
+        )
+        with (
+            patch.object(scheduler, "_publish_to_sns") as mock_sns,
+            patch.object(scheduler, "_execute_autoscaling_action") as mock_asg,
+        ):
+            # Should not raise, and should not route to SNS or ASG
+            scheduler._dispatch_actions(alarm, "OK", "ALARM", "reason", "123456789012", "us-east-1")
+        mock_sns.assert_not_called()
+        mock_asg.assert_not_called()
+
     def test_no_actions_does_not_publish(self):
         scheduler = AlarmScheduler()
         alarm = _make_alarm(alarm_actions=[])
@@ -526,12 +569,27 @@ class TestBuildAlarmMessage:
 
 class TestPublishToSns:
     def test_publishes_to_correct_sns_backend(self):
-        mock_sns_backend = MagicMock()
-        mock_backend_dict = {"123456789012": {"us-east-1": mock_sns_backend}}
+        mock_topic = MagicMock()
+        mock_sub = MagicMock()
+        mock_sub.confirmed = True
+        mock_topic.subscriptions = [mock_sub]
+        mock_store = MagicMock()
+        mock_store.get_topic.return_value = mock_topic
+        mock_deliver = MagicMock()
 
-        with patch(
-            "robotocore.services.cloudwatch.alarm_scheduler.get_backend",
-            return_value=mock_backend_dict,
+        with (
+            patch(
+                "robotocore.services.sns.provider._get_store",
+                return_value=mock_store,
+            ),
+            patch(
+                "robotocore.services.sns.provider._deliver_to_subscriber",
+                mock_deliver,
+            ),
+            patch(
+                "robotocore.services.sns.provider._new_id",
+                return_value="test-msg-id",
+            ),
         ):
             AlarmScheduler._publish_to_sns(
                 "arn:aws:sns:us-east-1:123456789012:my-topic",
@@ -541,20 +599,28 @@ class TestPublishToSns:
                 "us-east-1",
             )
 
-        mock_sns_backend.publish.assert_called_once_with(
-            message="message body",
-            arn="arn:aws:sns:us-east-1:123456789012:my-topic",
-            subject="ALARM: test",
+        mock_store.get_topic.assert_called_once_with("arn:aws:sns:us-east-1:123456789012:my-topic")
+        mock_deliver.assert_called_once_with(
+            mock_sub,
+            "message body",
+            "ALARM: test",
+            {},
+            "test-msg-id",
+            "arn:aws:sns:us-east-1:123456789012:my-topic",
+            "us-east-1",
         )
 
     def test_invalid_arn_does_not_raise(self):
         # Should log a warning but not raise
         AlarmScheduler._publish_to_sns("not-an-arn", "msg", "subj", "123", "us-east-1")
 
-    def test_missing_sns_backend_does_not_raise(self):
+    def test_missing_sns_topic_does_not_raise(self):
+        mock_store = MagicMock()
+        mock_store.get_topic.return_value = None
+
         with patch(
-            "robotocore.services.cloudwatch.alarm_scheduler.get_backend",
-            return_value={},
+            "robotocore.services.sns.provider._get_store",
+            return_value=mock_store,
         ):
             AlarmScheduler._publish_to_sns(
                 "arn:aws:sns:us-east-1:123456789012:topic",

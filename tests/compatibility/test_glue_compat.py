@@ -4724,3 +4724,93 @@ class TestGlueMLTransforms:
         with pytest.raises(ClientError) as exc:
             glue.get_ml_task_runs(TransformId="tfm-00000000")
         assert exc.value.response["Error"]["Code"] == "EntityNotFoundException"
+
+
+class TestGlueUpdateRegistry:
+    def test_update_registry(self, glue):
+        """UpdateRegistry changes registry description."""
+        reg_name = _unique("reg")
+        glue.create_registry(RegistryName=reg_name, Description="original")
+        try:
+            resp = glue.update_registry(
+                RegistryId={"RegistryName": reg_name},
+                Description="updated",
+            )
+            assert resp["RegistryName"] == reg_name
+            got = glue.get_registry(RegistryId={"RegistryName": reg_name})
+            assert got["Description"] == "updated"
+        finally:
+            glue.delete_registry(RegistryId={"RegistryName": reg_name})
+
+    def test_update_registry_not_found(self, glue):
+        """UpdateRegistry with nonexistent registry raises EntityNotFoundException."""
+        with pytest.raises(ClientError) as exc:
+            glue.update_registry(
+                RegistryId={"RegistryName": "nonexistent-reg-xyz"},
+                Description="nope",
+            )
+        assert exc.value.response["Error"]["Code"] == "EntityNotFoundException"
+
+
+class TestGlueStartDataQualityRulesetEvaluationRun:
+    def test_start_data_quality_ruleset_evaluation_run(self, glue):
+        """StartDataQualityRulesetEvaluationRun returns a RunId."""
+        resp = glue.start_data_quality_ruleset_evaluation_run(
+            DataSource={"GlueTable": {"DatabaseName": "testdb", "TableName": "testtbl"}},
+            Role="arn:aws:iam::123456789012:role/test",
+            RulesetNames=["ruleset1"],
+        )
+        assert "RunId" in resp
+
+
+class TestGlueBatchGetDataQualityResult:
+    def test_batch_get_data_quality_result(self, glue):
+        """BatchGetDataQualityResult returns results list (possibly empty)."""
+        resp = glue.batch_get_data_quality_result(ResultIds=["result-fake-id"])
+        assert "Results" in resp
+
+
+class TestGlueGetUserDefinedFunctions:
+    """Tests for GetUserDefinedFunctions (plural list operation)."""
+
+    def test_get_user_defined_functions_empty(self, glue):
+        """GetUserDefinedFunctions returns empty list for db with no UDFs."""
+        db_name = _unique("db")
+        glue.create_database(DatabaseInput={"Name": db_name})
+        try:
+            resp = glue.get_user_defined_functions(DatabaseName=db_name, Pattern="*")
+            assert "UserDefinedFunctions" in resp
+            assert resp["UserDefinedFunctions"] == []
+        finally:
+            glue.delete_database(Name=db_name)
+
+    def test_get_user_defined_functions_returns_created(self, glue):
+        """GetUserDefinedFunctions lists UDFs matching pattern."""
+        db_name = _unique("db")
+        func_name = _unique("udf")
+        glue.create_database(DatabaseInput={"Name": db_name})
+        glue.create_user_defined_function(
+            DatabaseName=db_name,
+            FunctionInput={
+                "FunctionName": func_name,
+                "ClassName": "com.example.ListUDF",
+                "OwnerName": "owner",
+                "OwnerType": "USER",
+            },
+        )
+        try:
+            resp = glue.get_user_defined_functions(DatabaseName=db_name, Pattern="*")
+            names = [f["FunctionName"] for f in resp["UserDefinedFunctions"]]
+            assert func_name in names
+        finally:
+            glue.delete_user_defined_function(DatabaseName=db_name, FunctionName=func_name)
+            glue.delete_database(Name=db_name)
+
+    def test_get_user_defined_functions_nonexistent_db(self, glue):
+        """GetUserDefinedFunctions on missing db raises error."""
+        with pytest.raises(ClientError) as exc:
+            glue.get_user_defined_functions(
+                DatabaseName="nonexistent-db-xyz-999",
+                Pattern="*",
+            )
+        assert exc.value.response["Error"]["Code"] == "EntityNotFoundException"

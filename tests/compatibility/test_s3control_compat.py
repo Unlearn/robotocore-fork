@@ -3564,3 +3564,86 @@ class TestS3ControlStorageLensGroups:
         )
         resp = s3control.delete_storage_lens_group(AccountId=ACCOUNT_ID, Name=name)
         assert resp["ResponseMetadata"]["HTTPStatusCode"] in (200, 204)
+
+
+class TestS3ControlJobTaggingExpanded:
+    """Tests for S3 Control Job Tagging operations."""
+
+    def test_get_job_tagging_not_found(self, s3control):
+        """GetJobTagging for nonexistent job raises NoSuchJob."""
+        with pytest.raises(ClientError) as exc:
+            s3control.get_job_tagging(AccountId=ACCOUNT_ID, JobId="nonexistent-job-id")
+        assert exc.value.response["Error"]["Code"] == "NoSuchJob"
+
+    def test_put_job_tagging_not_found(self, s3control):
+        """PutJobTagging for nonexistent job raises NoSuchJob."""
+        with pytest.raises(ClientError) as exc:
+            s3control.put_job_tagging(
+                AccountId=ACCOUNT_ID,
+                JobId="nonexistent-job-id",
+                Tags=[{"Key": "env", "Value": "test"}],
+            )
+        assert exc.value.response["Error"]["Code"] == "NoSuchJob"
+
+    def test_delete_job_tagging_not_found(self, s3control):
+        """DeleteJobTagging for nonexistent job raises NoSuchJob."""
+        with pytest.raises(ClientError) as exc:
+            s3control.delete_job_tagging(AccountId=ACCOUNT_ID, JobId="nonexistent-job-id")
+        assert exc.value.response["Error"]["Code"] == "NoSuchJob"
+
+
+class TestS3ControlBucketLifecycle:
+    """Tests for S3 Control PutBucketLifecycleConfiguration."""
+
+    @pytest.fixture
+    def s3control(self):
+        return make_client("s3control")
+
+    @pytest.fixture
+    def s3(self):
+        return make_client("s3")
+
+    @pytest.fixture
+    def bucket(self, s3):
+        name = f"lifecycle-test-{_uid()}"
+        s3.create_bucket(Bucket=name)
+        yield name
+        try:
+            s3.delete_bucket(Bucket=name)
+        except Exception:
+            pass  # best-effort cleanup; bucket may already be gone
+
+    def test_put_bucket_lifecycle_configuration(self, s3control, bucket):
+        """PutBucketLifecycleConfiguration sets lifecycle rules."""
+        resp = s3control.put_bucket_lifecycle_configuration(
+            AccountId=ACCOUNT_ID,
+            Bucket=bucket,
+            LifecycleConfiguration={
+                "Rules": [
+                    {
+                        "ID": "expire-logs",
+                        "Status": "Enabled",
+                        "Filter": {"Prefix": "logs/"},
+                    }
+                ]
+            },
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_put_bucket_lifecycle_nonexistent_bucket(self, s3control):
+        """PutBucketLifecycleConfiguration on missing bucket raises error."""
+        with pytest.raises(ClientError) as exc:
+            s3control.put_bucket_lifecycle_configuration(
+                AccountId=ACCOUNT_ID,
+                Bucket=f"no-such-bucket-{_uid()}",
+                LifecycleConfiguration={
+                    "Rules": [
+                        {
+                            "ID": "test",
+                            "Status": "Enabled",
+                            "Filter": {"Prefix": ""},
+                        }
+                    ]
+                },
+            )
+        assert exc.value.response["Error"]["Code"] == "NoSuchBucket"

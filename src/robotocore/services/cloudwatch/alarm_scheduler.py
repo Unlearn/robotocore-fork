@@ -110,8 +110,6 @@ class AlarmScheduler:
             return
         if not alarm.statistic:
             return
-        if not alarm.actions_enabled:
-            return
 
         period = alarm.period or 60
         evaluation_periods = alarm.evaluation_periods or 1
@@ -144,8 +142,9 @@ class AlarmScheduler:
             new_state,
         )
 
-        # Dispatch actions based on the new state
-        self._dispatch_actions(alarm, old_state, new_state, reason, account_id, region_name)
+        # Dispatch actions based on the new state (only if actions are enabled)
+        if alarm.actions_enabled:
+            self._dispatch_actions(alarm, old_state, new_state, reason, account_id, region_name)
 
     def _collect_metric_values(
         self, backend, alarm, period: int, evaluation_periods: int
@@ -186,7 +185,11 @@ class AlarmScheduler:
                 if not self._dimensions_match(datum.dimensions, alarm_dimensions):
                     continue
                 # Check timestamp is within the period
-                if datum.timestamp < start_time or datum.timestamp >= end_time:
+                # Moto may store timestamps as naive (UTC-assumed) datetimes
+                ts = datum.timestamp
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC)
+                if ts < start_time or ts >= end_time:
                     continue
                 # Get the value
                 if hasattr(datum, "value"):
@@ -321,6 +324,10 @@ class AlarmScheduler:
             try:
                 if ":autoscaling:" in action_arn:
                     self._execute_autoscaling_action(action_arn, account_id, region_name)
+                elif ":lambda:" in action_arn:
+                    self._invoke_lambda_action(action_arn, message, region_name, account_id)
+                elif ":automate:" in action_arn:
+                    logger.info("EC2 automate action (no-op): %s", action_arn)
                 else:
                     self._publish_to_sns(action_arn, message, subject, account_id, region_name)
             except Exception:
@@ -363,6 +370,29 @@ class AlarmScheduler:
         return json.dumps(message)
 
     @staticmethod
+    def _invoke_lambda_action(
+        function_arn: str,
+        message: str,
+        region: str,
+        account_id: str,
+    ) -> None:
+        """Invoke a Lambda function as a CloudWatch alarm action."""
+        try:
+            import json as _json
+
+            from robotocore.services.lambda_.invoke import invoke_lambda_async
+
+            payload = _json.loads(message)
+            # Parse region/account from the Lambda ARN
+            arn_parts = function_arn.split(":")
+            target_region = arn_parts[3] if len(arn_parts) >= 7 else region
+            target_account = arn_parts[4] if len(arn_parts) >= 7 else account_id
+            invoke_lambda_async(function_arn, payload, target_region, target_account)
+            logger.info("CloudWatch alarm -> Lambda: %s", function_arn)
+        except Exception:
+            logger.exception("Failed to invoke Lambda action: %s", function_arn)
+
+    @staticmethod
     def _publish_to_sns(
         topic_arn: str,
         message: str,
@@ -370,7 +400,11 @@ class AlarmScheduler:
         account_id: str,
         region_name: str,
     ) -> None:
-        """Publish a message to an SNS topic via Moto's backend."""
+        """Publish a message to an SNS topic via our native SNS provider.
+
+        Uses our provider's delivery path so that subscriptions (SQS, Lambda, etc.)
+        are properly triggered, rather than going through Moto's backend directly.
+        """
         # Parse region from the topic ARN (arn:aws:sns:REGION:ACCOUNT:TOPIC)
         arn_match = re.match(r"arn:aws:sns:([^:]+):([^:]+):(.+)", topic_arn)
         if not arn_match:
@@ -381,16 +415,32 @@ class AlarmScheduler:
         sns_account = arn_match.group(2)
 
         try:
-            sns_backend = get_backend("sns")[sns_account][sns_region]
-        except (KeyError, TypeError):
-            logger.warning("SNS backend not found for %s/%s", sns_account, sns_region)
-            return
+            from robotocore.services.sns.provider import (
+                _deliver_to_subscriber,
+                _get_store,
+                _new_id,
+            )
 
-        sns_backend.publish(
-            message=message,
-            arn=topic_arn,
-            subject=subject,
-        )
+            store = _get_store(sns_region, sns_account)
+            topic = store.get_topic(topic_arn)
+            if not topic:
+                logger.warning("SNS topic not found: %s", topic_arn)
+                return
+
+            message_id = _new_id()
+            for sub in topic.subscriptions:
+                if sub.confirmed:
+                    _deliver_to_subscriber(
+                        sub,
+                        message,
+                        subject,
+                        {},
+                        message_id,
+                        topic_arn,
+                        sns_region,
+                    )
+        except Exception:
+            logger.exception("Failed to publish to SNS topic %s", topic_arn)
 
     @staticmethod
     def _execute_autoscaling_action(

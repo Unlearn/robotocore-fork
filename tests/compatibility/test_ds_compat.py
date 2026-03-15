@@ -1290,3 +1290,61 @@ class TestDsSchemaExtensionOps:
                 SchemaExtensionId="e-0000000000",
             )
         assert exc.value.response["Error"]["Code"] == "EntityDoesNotExistException"
+
+
+@pytest.fixture
+def msad_directory(ds, ec2):
+    """Create a MicrosoftAD directory with VPC infrastructure, clean up after test."""
+    vpc = ec2.create_vpc(CidrBlock="10.90.0.0/16")
+    vpc_id = vpc["Vpc"]["VpcId"]
+    subnet1 = ec2.create_subnet(
+        VpcId=vpc_id, CidrBlock="10.90.1.0/24", AvailabilityZone="us-east-1a"
+    )
+    subnet2 = ec2.create_subnet(
+        VpcId=vpc_id, CidrBlock="10.90.2.0/24", AvailabilityZone="us-east-1b"
+    )
+    sid1 = subnet1["Subnet"]["SubnetId"]
+    sid2 = subnet2["Subnet"]["SubnetId"]
+
+    resp = ds.create_microsoft_ad(
+        Name="msadfix.example.com",
+        Password="P@ssw0rd!",
+        VpcSettings={"VpcId": vpc_id, "SubnetIds": [sid1, sid2]},
+    )
+    dir_id = resp["DirectoryId"]
+
+    yield dir_id
+
+    # Cleanup
+    try:
+        ds.delete_directory(DirectoryId=dir_id)
+    except ClientError:
+        pass  # best-effort cleanup
+    for sid in [sid1, sid2]:
+        try:
+            ec2.delete_subnet(SubnetId=sid)
+        except ClientError:
+            pass  # best-effort cleanup
+    try:
+        ec2.delete_vpc(VpcId=vpc_id)
+    except ClientError:
+        pass  # best-effort cleanup
+
+
+class TestDsLDAPSMicrosoftAD:
+    """Test LDAPS operations on MicrosoftAD directories."""
+
+    def test_enable_ldaps_msad(self, ds, msad_directory):
+        """EnableLDAPS on MicrosoftAD succeeds."""
+        resp = ds.enable_ldaps(DirectoryId=msad_directory, Type="Client")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_disable_ldaps_msad(self, ds, msad_directory):
+        """DisableLDAPS on MicrosoftAD succeeds."""
+        resp = ds.disable_ldaps(DirectoryId=msad_directory, Type="Client")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_describe_ldaps_settings_msad(self, ds, msad_directory):
+        """DescribeLDAPSSettings on MicrosoftAD returns settings info."""
+        resp = ds.describe_ldaps_settings(DirectoryId=msad_directory, Type="Client")
+        assert "LDAPSSettingsInfo" in resp
