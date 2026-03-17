@@ -30,8 +30,68 @@ logger = logging.getLogger(__name__)
 _env_lock = threading.Lock()
 _path_lock = threading.Lock()
 
-# Thread-local storage for per-invocation environment variables
+# Thread-local storage for per-invocation environment variables and stdout capture
 _thread_local = threading.local()
+
+# Per-invocation stdout buffer: routes print() calls to the correct buffer per thread
+_invocation_output: threading.local = threading.local()
+_stdout_install_lock = threading.Lock()
+
+
+class _PerInvocationWriter(io.TextIOBase):
+    """Thread-local stdout/stderr proxy for concurrent Lambda invocations.
+
+    Each _run_handler worker thread registers its logs_output buffer via
+    _invocation_output.buffer. Writes from that thread go to its buffer;
+    writes from threads with no registered buffer fall through to the
+    original stream. This prevents concurrent invocations from clobbering
+    each other's captured output.
+    """
+
+    def __init__(self, real: io.TextIOBase) -> None:
+        self._real = real
+
+    def write(self, s: str) -> int:
+        buf = getattr(_invocation_output, "buffer", None)
+        if buf is not None:
+            return buf.write(s)
+        return self._real.write(s)
+
+    def flush(self) -> None:
+        buf = getattr(_invocation_output, "buffer", None)
+        if buf is not None:
+            buf.flush()
+        else:
+            self._real.flush()
+
+    @property
+    def encoding(self) -> str:
+        return self._real.encoding
+
+    @property
+    def errors(self) -> str | None:
+        return self._real.errors
+
+    def fileno(self) -> int:
+        return self._real.fileno()
+
+
+def _install_capturing_stdout() -> None:
+    """Wrap sys.stdout/stderr with thread-local proxy (thread-safe, re-entrant safe).
+
+    pytest replaces sys.stdout between tests, so we check isinstance each time
+    rather than caching a boolean flag. The unlocked isinstance check avoids
+    lock contention on the fast path (already installed).
+    """
+    if isinstance(sys.stdout, _PerInvocationWriter) and isinstance(
+        sys.stderr, _PerInvocationWriter
+    ):
+        return
+    with _stdout_install_lock:
+        if not isinstance(sys.stdout, _PerInvocationWriter):
+            sys.stdout = _PerInvocationWriter(sys.stdout)
+        if not isinstance(sys.stderr, _PerInvocationWriter):
+            sys.stderr = _PerInvocationWriter(sys.stderr)
 
 
 class _ThreadLocalEnviron:
@@ -194,10 +254,10 @@ def get_layer_zips(fn, account_id: str, region: str) -> list[bytes]:
                             layer_zips.append(zip_data)
                         elif hasattr(layer_ver, "code_bytes") and layer_ver.code_bytes:
                             layer_zips.append(layer_ver.code_bytes)
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except Exception as exc:
+                logger.debug("get_layer_zips: split failed (non-fatal): %s", exc)
+    except Exception as exc:
+        logger.debug("get_layer_zips: isinstance failed (non-fatal): %s", exc)
 
     return layer_zips
 
@@ -352,11 +412,12 @@ class CodeCache:
                 self._refcounts.pop(path, None)
                 self._pending_cleanup.discard(path)
                 shutil.rmtree(path, ignore_errors=True)
-        # Also clear function-scoped module cache in sys.modules
-        prefix = f"_lambda_{function_name}."
-        for name in list(sys.modules.keys()):
-            if name.startswith(prefix):
-                sys.modules.pop(name, None)
+            # Also clear function-scoped module cache in sys.modules
+            # (inside lock to prevent concurrent imports from re-adding)
+            prefix = f"_lambda_{function_name}."
+            for name in list(sys.modules.keys()):
+                if name.startswith(prefix):
+                    sys.modules.pop(name, None)
 
     def invalidate_all(self) -> None:
         """Remove all cached entries and clean up all tmpdirs.
@@ -372,10 +433,11 @@ class CodeCache:
             for path in self._pending_cleanup:
                 shutil.rmtree(path, ignore_errors=True)
             self._pending_cleanup.clear()
-        # Also clear all function-scoped module cache entries
-        for name in list(sys.modules.keys()):
-            if name.startswith("_lambda_"):
-                sys.modules.pop(name, None)
+            # Also clear all function-scoped module cache entries
+            # (inside lock to prevent concurrent imports from re-adding)
+            for name in list(sys.modules.keys()):
+                if name.startswith("_lambda_"):
+                    sys.modules.pop(name, None)
 
     def __len__(self) -> int:
         with self._lock:
@@ -432,8 +494,8 @@ def _clear_plain_modules_for_dir(code_dir: str) -> None:
             try:
                 if os.path.abspath(mod_file).startswith(norm_dir):
                     to_remove.append(name)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as exc:
+                logger.debug("_clear_plain_modules_for_dir: startswith failed (non-fatal): %s", exc)
     for name in to_remove:
         sys.modules.pop(name, None)
 
@@ -463,7 +525,9 @@ def _clear_modules_for_dir(code_dir: str) -> None:
     # Also clear function-scoped module cache keys (_lambda_* entries)
     for name in list(sys.modules.keys()):
         if name.startswith("_lambda_"):
-            mod = sys.modules[name]
+            mod = sys.modules.get(name)
+            if mod is None:
+                continue
             mod_file = getattr(mod, "__file__", None)
             if mod_file:
                 try:
@@ -533,6 +597,7 @@ def execute_python_handler(
 
     Returns (result, error_type, logs).
     """
+    _install_capturing_stdout()
     logs_output = io.StringIO()
 
     # Parse handler: "module.function" or "dir/module.function"
@@ -585,13 +650,16 @@ def execute_python_handler(
         # Set up sys.path with lock for thread safety.
         # Track exactly which entries we add so we can remove them later
         # without corrupting other threads' additions.
+        # Only add paths that aren't already present — avoids removing pre-existing
+        # entries when sys.path.remove() removes the first occurrence.
         added_paths = []
         with _path_lock:
-            sys.path.insert(0, tmpdir)
-            added_paths.append(tmpdir)
+            if tmpdir not in sys.path:
+                sys.path.insert(0, tmpdir)
+                added_paths.append(tmpdir)
             # AWS Lambda layers put Python code in python/ subdirectory
             python_subdir = os.path.join(tmpdir, "python")
-            if os.path.isdir(python_subdir):
+            if os.path.isdir(python_subdir) and python_subdir not in sys.path:
                 sys.path.insert(1, python_subdir)
                 added_paths.append(python_subdir)
 
@@ -630,12 +698,8 @@ def execute_python_handler(
         # Use a function-scoped key so different Lambda functions don't collide
         modules_key = f"_lambda_{function_name}.{module_path}"
 
-        # Capture print output
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = logs_output
-        sys.stderr = logs_output
-
+        # Route prints from module-level code (exec_module) to logs_output too
+        _invocation_output.buffer = logs_output
         try:
             # Reuse cached module when hot_reload is off (matches real Lambda behavior:
             # modules persist across invocations within the same execution environment)
@@ -660,6 +724,8 @@ def execute_python_handler(
             handler_error = [None]
 
             def _run_handler():
+                # Route print() in this thread to the invocation's log buffer
+                _invocation_output.buffer = logs_output
                 # Set thread-local environment so os.environ reads in
                 # this thread see invocation-specific values
                 _thread_local.env = dict(invocation_env)
@@ -668,6 +734,7 @@ def execute_python_handler(
                 except Exception as exc:
                     handler_error[0] = exc
                 finally:
+                    _invocation_output.buffer = None
                     _thread_local.env = None
 
             worker = threading.Thread(target=_run_handler, daemon=True)
@@ -682,8 +749,11 @@ def execute_python_handler(
                         ctypes.pythonapi.PyThreadState_SetAsyncExc(
                             ctypes.c_ulong(tid), ctypes.py_object(SystemExit)
                         )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "execute_python_handler: pythreadstate_setasyncexc failed (non-fatal): %s",
+                        exc,
+                    )
                 # Add END/REPORT log lines
                 elapsed_ms = timeout * 1000
                 logs_output.write(f"END RequestId: {request_id}\n")
@@ -746,17 +816,16 @@ def execute_python_handler(
                 "stackTrace": _format_stacktrace(tb),
             }
             return error_result, "Handled", logs_output.getvalue()
-        finally:
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
     finally:
+        # Stop routing this thread's prints to logs_output
+        _invocation_output.buffer = None
         # Remove only the paths we added (thread-safe: doesn't affect other threads)
         with _path_lock:
             for p in added_paths:
                 try:
                     sys.path.remove(p)
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    logger.debug("execute_python_handler: remove failed (non-fatal): %s", exc)
         # Release the cache reference
         _code_cache.release_ref(tmpdir)
         # Do NOT clean up tmpdir when using cache or mount dir --- managed externally

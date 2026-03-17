@@ -3,7 +3,9 @@
         start stop status smoke help test-quality validate-tests lint-project \
         test-iac test-iac-terraform test-iac-cloudformation test-iac-cdk \
         test-iac-pulumi test-iac-serverless test-iac-sam release \
-        coverage pre-commit-install pre-commit
+        s3-semantic-audit s3-connectivity-matrix \
+        coverage pre-commit-install pre-commit \
+        shape-check error-check
 
 N := $(shell python3 -c "import os; print(min(os.cpu_count() or 4, 12))")
 DEV := uv run python scripts/dev.py
@@ -105,6 +107,14 @@ pre-commit-install: ## Install pre-commit hooks into local git repo
 pre-commit: ## Run pre-commit checks on all files
 	uv run pre-commit run --all-files
 
+## ── Shape & contract validation ──────────────────────────────────────────
+
+shape-check: ## Validate response shapes against botocore (requires running server)
+	uv run python scripts/validate_response_shapes.py --top 20 --no-optional
+
+error-check: ## Validate error response contracts (requires running server)
+	uv run python scripts/validate_error_contracts.py --top 20
+
 ## ── Gap analysis ─────────────────────────────────────────────────────────────
 
 gap-analysis: ## Full gap analysis: robotocore vs LocalStack AND vs 100% botocore
@@ -131,6 +141,12 @@ parity-report: ## Generate full parity report to parity-report.json (auto-manage
 	$(DEV) server-start
 	ENDPOINT_URL=http://localhost:4566 uv run python scripts/generate_parity_report.py --output parity-report.json
 	$(DEV) server-stop
+
+s3-semantic-audit: ## Generate the S3 feature-level semantic audit report
+	uv run python scripts/s3_semantic_audit.py
+
+s3-connectivity-matrix: s3-semantic-audit ## Regenerate the S3 connectivity matrix
+	@echo "Wrote docs/s3-connectivity-matrix.md"
 
 ## ── Docker ───────────────────────────────────────────────────────────────────
 

@@ -19,6 +19,8 @@ from robotocore.services.s3.notifications import (
     set_notification_config,
 )
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Monkey-patch Moto's FakeBucket.get_permission to handle policy as str or bytes.
 # Moto assumes self.policy is always bytes, but put_bucket_policy passes self.body
@@ -36,8 +38,8 @@ try:
         return _orig_get_permission(self, action, resource)
 
     FakeBucket.get_permission = _patched_get_permission  # type: ignore[assignment]
-except Exception:
-    pass
+except Exception as exc:
+    logger.debug("<module>: _orig_get_permission failed (non-fatal): %s", exc)
 
 # Patterns to detect bucket and key from S3 paths
 # Path style: /<bucket>/<key>
@@ -250,8 +252,8 @@ def _parse_cors_xml(xml_str: str) -> list[dict]:
             elif tag == "MaxAgeSeconds":
                 try:
                     rule["MaxAgeSeconds"] = int(text)
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    logger.debug("_parse_cors_xml: int failed (non-fatal): %s", exc)
         rules.append(rule)
     return rules
 
@@ -569,6 +571,13 @@ async def handle_s3_request(request: Request, region: str, account_id: str) -> R
             return _handle_cors_preflight(match.group(1), request)
         return Response(status_code=400)
 
+    # WriteGetObjectResponse — S3 Object Lambda. A Lambda function calls this to
+    # deliver the transformed object back to the caller. boto3 sends the request to
+    # {RequestRoute}.localhost:{port}/WriteGetObjectResponse; after S3 vhost rewriting
+    # the path becomes /{route-token}/WriteGetObjectResponse. Accept and return 200.
+    if path.endswith("/WriteGetObjectResponse") and method == "POST":
+        return Response(status_code=200)
+
     # Handle presigned URL requests by stripping signature params
     if _is_presigned_url(request.query_params):
         body = await request.body()
@@ -610,9 +619,13 @@ async def handle_s3_request(request: Request, region: str, account_id: str) -> R
     # Versioning: ?versioning and ?versionId= are forwarded to Moto directly
     # These are native Moto operations and need no interception.
 
-    # CreateSession (S3 Express) — forward to Moto
+    # CreateSession (S3 Express) — return session credentials for directory buckets.
+    # boto3 automatically calls CreateSession before every S3 Express operation,
+    # including CreateBucket. We handle this natively so the credentials are
+    # available immediately without requiring the bucket to already be a directory
+    # bucket in Moto, which would create a chicken-and-egg problem.
     if sub == "session":
-        return await forward_to_moto(request, "s3", account_id=account_id)
+        return _handle_create_session(path)
 
     # RenameObject (S3 Express — directory buckets only) — forward to Moto
     if sub == "renameObject":
@@ -654,8 +667,8 @@ async def handle_s3_request(request: Request, region: str, account_id: str) -> R
                     if hname.lower() == "content-length":
                         try:
                             content_length = int(v)
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as exc:
+                            logger.debug("handle_s3_request: int failed (non-fatal): %s", exc)
                 etag = ""
                 for h, v in response.raw_headers:
                     hname = h.decode() if isinstance(h, bytes) else h
@@ -743,6 +756,55 @@ async def handle_s3_request(request: Request, region: str, account_id: str) -> R
                     )
 
     return response
+
+
+# ---------------------------------------------------------------------------
+# S3 Express session handler
+# ---------------------------------------------------------------------------
+
+_S3_EXPRESS_SESSION_EXPIRY_HOURS = 12
+
+_CREATE_SESSION_RESPONSE_TEMPLATE = (
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    "<CreateSessionResult>"
+    "<Credentials>"
+    "<SessionToken>{token}</SessionToken>"
+    "<SecretAccessKey>{secret}</SecretAccessKey>"
+    "<AccessKeyId>{key_id}</AccessKeyId>"
+    "<Expiration>{expiry}</Expiration>"
+    "</Credentials>"
+    "</CreateSessionResult>"
+)
+
+
+def _handle_create_session(path: str) -> Response:
+    """Return temporary S3 Express session credentials.
+
+    Handled natively rather than delegated to Moto because boto3's automatic
+    session management calls CreateSession before *every* S3 Express operation —
+    including CreateBucket itself — creating a chicken-and-egg situation where
+    the bucket does not yet exist when the first session request arrives.
+    """
+    import datetime
+    import hashlib
+
+    seed = path + datetime.datetime.now(datetime.UTC).isoformat()
+    h = hashlib.sha256(seed.encode()).hexdigest()
+    expiry = (
+        datetime.datetime.now(datetime.UTC)
+        + datetime.timedelta(hours=_S3_EXPRESS_SESSION_EXPIRY_HOURS)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    body = _CREATE_SESSION_RESPONSE_TEMPLATE.format(
+        token=f"FwoGZXIvYXdzE{h}",
+        secret=h,
+        key_id=f"ASIA{h[:16].upper()}",
+        expiry=expiry,
+    )
+    return Response(
+        status_code=200,
+        content=body,
+        media_type="application/xml",
+    )
 
 
 # ---------------------------------------------------------------------------
