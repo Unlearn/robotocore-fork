@@ -215,7 +215,7 @@ def _handle_get_health_check_count(account_id: str) -> Response:
 
         backend = get_backend("route53")[account_id]["global"]
         count = len(backend.health_checks.values())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.debug("_handle_get_health_check_count: len failed (non-fatal): %s", exc)
 
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -289,6 +289,7 @@ def _handle_list_traffic_policies() -> Response:
 <ListTrafficPoliciesResponse xmlns="https://route53.amazonaws.com/doc/2013-04-01/">
   <TrafficPolicySummaries/>
   <IsTruncated>false</IsTruncated>
+  <TrafficPolicyIdMarker></TrafficPolicyIdMarker>
   <MaxItems>100</MaxItems>
 </ListTrafficPoliciesResponse>"""
     return Response(content=xml, status_code=200, media_type="text/xml")
@@ -325,7 +326,7 @@ def _handle_test_dns_answer(request: Request, region: str, account_id: str) -> R
                         for record in rr_set.records:
                             val = record.value if hasattr(record, "value") else str(record)
                             record_data.append(val)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.debug("_handle_test_dns_answer: get_hosted_zone failed (non-fatal): %s", exc)
 
     if not record_data:
@@ -397,7 +398,7 @@ def _handle_associate_vpc(zone_id: str, body: bytes, region: str, account_id: st
     try:
         backend = get_backend("route53")[account_id]["global"]
         zone = backend.get_hosted_zone(zone_id)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return _no_such_hosted_zone_response(zone_id)
 
     parsed = xmltodict.parse(body)
@@ -428,7 +429,7 @@ def _handle_disassociate_vpc(zone_id: str, body: bytes, region: str, account_id:
     try:
         backend = get_backend("route53")[account_id]["global"]
         zone = backend.get_hosted_zone(zone_id)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return _no_such_hosted_zone_response(zone_id)
 
     if hasattr(zone, "vpcs"):

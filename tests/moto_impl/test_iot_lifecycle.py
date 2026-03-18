@@ -1,5 +1,7 @@
 """Resource lifecycle tests for iot (auto-generated)."""
 
+import logging
+
 import pytest
 from botocore.exceptions import ClientError
 
@@ -57,17 +59,23 @@ def test_audit_mitigation_actions_task_not_found(client):
 
 def test_audit_suppression_lifecycle(client):
     """Test AuditSuppression CRUD lifecycle."""
+    ri = {"clientId": "test-client-1"}
+    # Cleanup in case of previous test run leaving state
+    try:
+        client.delete_audit_suppression(checkName="test-name-1", resourceIdentifier=ri)
+    except ClientError as e:
+        logging.debug("pre-cleanup skipped: %s", e)
     # CREATE
     client.create_audit_suppression(
         checkName="test-name-1",
-        resourceIdentifier={},
+        resourceIdentifier=ri,
         clientRequestToken="test-string",
     )
 
     # DESCRIBE
     desc_resp = client.describe_audit_suppression(
         checkName="test-name-1",
-        resourceIdentifier={},
+        resourceIdentifier=ri,
     )
     assert isinstance(desc_resp.get("checkName"), str)
     assert len(desc_resp.get("checkName", "")) > 0
@@ -76,14 +84,14 @@ def test_audit_suppression_lifecycle(client):
     # DELETE
     client.delete_audit_suppression(
         checkName="test-name-1",
-        resourceIdentifier={},
+        resourceIdentifier=ri,
     )
 
     # DESCRIBE after DELETE should fail
     with pytest.raises(ClientError) as exc:
         client.describe_audit_suppression(
             checkName="test-name-1",
-            resourceIdentifier={},
+            resourceIdentifier=ri,
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",
@@ -99,8 +107,8 @@ def test_audit_suppression_not_found(client):
     """Test that describing a non-existent AuditSuppression raises error."""
     with pytest.raises(ClientError) as exc:
         client.describe_audit_suppression(
-            checkName="fake-id",
-            resourceIdentifier="fake-id",
+            checkName="nonexistent-check",
+            resourceIdentifier={"clientId": "nonexistent-client-xyz"},
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",
@@ -260,7 +268,7 @@ def test_ca_certificate_not_found(client):
     """Test that describing a non-existent CACertificate raises error."""
     with pytest.raises(ClientError) as exc:
         client.describe_ca_certificate(
-            certificateId="fake-id",
+            certificateId="a" * 64,
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",
@@ -313,7 +321,7 @@ def test_certificate_not_found(client):
     """Test that describing a non-existent Certificate raises error."""
     with pytest.raises(ClientError) as exc:
         client.describe_certificate(
-            certificateId="fake-id",
+            certificateId="a" * 64,
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",
@@ -967,10 +975,16 @@ def test_package_not_found(client):
 
 def test_package_version_lifecycle(client):
     """Test PackageVersion CRUD lifecycle."""
+    # Pre-cleanup + create package prerequisite
+    try:
+        client.delete_package(packageName="test-pkg-for-version")
+    except ClientError as e:
+        logging.debug("pre-cleanup skipped: %s", e)
+    client.create_package(packageName="test-pkg-for-version")
     # CREATE
     create_resp = client.create_package_version(
-        packageName="test-name-1",
-        versionName="test-name-1",
+        packageName="test-pkg-for-version",
+        versionName="1.0.0",
     )
     assert isinstance(create_resp.get("packageName"), str)
     assert len(create_resp.get("packageName", "")) > 0
@@ -980,8 +994,8 @@ def test_package_version_lifecycle(client):
 
     # DESCRIBE
     desc_resp = client.get_package_version(
-        packageName="test-name-1",
-        versionName="test-name-1",
+        packageName="test-pkg-for-version",
+        versionName="1.0.0",
     )
     assert isinstance(desc_resp.get("packageName"), str)
     assert len(desc_resp.get("packageName", "")) > 0
@@ -993,15 +1007,15 @@ def test_package_version_lifecycle(client):
 
     # DELETE
     client.delete_package_version(
-        packageName="test-name-1",
-        versionName="test-name-1",
+        packageName="test-pkg-for-version",
+        versionName="1.0.0",
     )
 
     # DESCRIBE after DELETE should fail
     with pytest.raises(ClientError) as exc:
         client.get_package_version(
-            packageName="test-name-1",
-            versionName="test-name-1",
+            packageName="test-pkg-for-version",
+            versionName="1.0.0",
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",
@@ -1085,10 +1099,19 @@ def test_policy_not_found(client):
 
 def test_policy_version_lifecycle(client):
     """Test PolicyVersion CRUD lifecycle."""
-    # CREATE
+    # Pre-cleanup + create policy prerequisite
+    try:
+        client.delete_policy(policyName="test-policy-for-version")
+    except ClientError as e:
+        logging.debug("pre-cleanup skipped: %s", e)
+    client.create_policy(
+        policyName="test-policy-for-version",
+        policyDocument='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"iot:*","Resource":"*"}]}',
+    )
+    # CREATE (adds a new version to existing policy)
     create_resp = client.create_policy_version(
-        policyName="test-name-1",
-        policyDocument="test-string",
+        policyName="test-policy-for-version",
+        policyDocument='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"iot:Connect","Resource":"*"}]}',
     )
     assert isinstance(create_resp.get("policyVersionId"), str)
     assert len(create_resp.get("policyVersionId", "")) > 0
@@ -1097,7 +1120,7 @@ def test_policy_version_lifecycle(client):
 
     # DESCRIBE
     desc_resp = client.get_policy_version(
-        policyName="test-name-1",
+        policyName="test-policy-for-version",
         policyVersionId=policy_version_id,
     )
     assert isinstance(desc_resp.get("policyName"), str)
@@ -1107,14 +1130,14 @@ def test_policy_version_lifecycle(client):
 
     # DELETE
     client.delete_policy_version(
-        policyName="test-name-1",
+        policyName="test-policy-for-version",
         policyVersionId=policy_version_id,
     )
 
     # DESCRIBE after DELETE should fail
     with pytest.raises(ClientError) as exc:
         client.get_policy_version(
-            policyName="test-name-1",
+            policyName="test-policy-for-version",
             policyVersionId=policy_version_id,
         )
     assert exc.value.response["Error"]["Code"] in (
@@ -1201,10 +1224,20 @@ def test_provisioning_template_not_found(client):
 
 def test_provisioning_template_version_lifecycle(client):
     """Test ProvisioningTemplateVersion CRUD lifecycle."""
+    # Pre-cleanup + create provisioning template prerequisite
+    try:
+        client.delete_provisioning_template(templateName="test-tmpl-for-version")
+    except ClientError as e:
+        logging.debug("pre-cleanup skipped: %s", e)
+    client.create_provisioning_template(
+        templateName="test-tmpl-for-version",
+        templateBody='{"Parameters":{},"Resources":{}}',
+        provisioningRoleArn="arn:aws:iam::123456789012:role/test-role",
+    )
     # CREATE
     create_resp = client.create_provisioning_template_version(
-        templateName="test-name-1",
-        templateBody="test-string",
+        templateName="test-tmpl-for-version",
+        templateBody='{"Parameters":{},"Resources":{"thing":{"Type":"AWS::IoT::Thing","Properties":{}}}}',
     )
     assert isinstance(create_resp.get("templateName"), str)
     assert len(create_resp.get("templateName", "")) > 0
@@ -1214,21 +1247,21 @@ def test_provisioning_template_version_lifecycle(client):
 
     # DESCRIBE
     desc_resp = client.describe_provisioning_template_version(
-        templateName="test-name-1",
+        templateName="test-tmpl-for-version",
         versionId=version_id,
     )
     assert isinstance(desc_resp.get("versionId"), int)
 
     # DELETE
     client.delete_provisioning_template_version(
-        templateName="test-name-1",
+        templateName="test-tmpl-for-version",
         versionId=version_id,
     )
 
     # DESCRIBE after DELETE should fail
     with pytest.raises(ClientError) as exc:
         client.describe_provisioning_template_version(
-            templateName="test-name-1",
+            templateName="test-tmpl-for-version",
             versionId=version_id,
         )
     assert exc.value.response["Error"]["Code"] in (
@@ -1695,25 +1728,30 @@ def test_topic_rule_lifecycle(client):
     """Test TopicRule CRUD lifecycle."""
     # CREATE
     client.create_topic_rule(
-        ruleName="test-name-1",
-        topicRulePayload={"sql": "test-string", "actions": [{}]},
+        ruleName="testname1",
+        topicRulePayload={
+            "sql": "SELECT * FROM 'test/topic'",
+            "actions": [
+                {"lambda": {"functionArn": "arn:aws:lambda:us-east-1:123456789012:function:test"}}
+            ],
+        },
     )
 
     # DESCRIBE
     desc_resp = client.get_topic_rule(
-        ruleName="test-name-1",
+        ruleName="testname1",
     )
     assert isinstance(desc_resp.get("rule", {}), dict)
 
     # DELETE
     client.delete_topic_rule(
-        ruleName="test-name-1",
+        ruleName="testname1",
     )
 
     # DESCRIBE after DELETE should fail
     with pytest.raises(ClientError) as exc:
         client.get_topic_rule(
-            ruleName="test-name-1",
+            ruleName="testname1",
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",
@@ -1745,25 +1783,28 @@ def test_topic_rule_destination_lifecycle(client):
     """Test TopicRuleDestination CRUD lifecycle."""
     # CREATE
     create_resp = client.create_topic_rule_destination(
-        destinationConfiguration={},
+        destinationConfiguration={
+            "httpUrlConfiguration": {"confirmationUrl": "https://example.com/confirm"}
+        },
     )
     assert isinstance(create_resp.get("topicRuleDestination", {}), dict)
+    dest_arn = create_resp["topicRuleDestination"]["arn"]
 
     # DESCRIBE
     desc_resp = client.get_topic_rule_destination(
-        arn="arn:aws:iam::123456789012:role/test-role",
+        arn=dest_arn,
     )
     assert isinstance(desc_resp.get("topicRuleDestination", {}), dict)
 
     # DELETE
     client.delete_topic_rule_destination(
-        arn="arn:aws:iam::123456789012:role/test-role",
+        arn=dest_arn,
     )
 
     # DESCRIBE after DELETE should fail
     with pytest.raises(ClientError) as exc:
         client.get_topic_rule_destination(
-            arn="arn:aws:iam::123456789012:role/test-role",
+            arn=dest_arn,
         )
     assert exc.value.response["Error"]["Code"] in (
         "ResourceNotFoundException",

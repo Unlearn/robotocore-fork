@@ -1,7 +1,10 @@
 """Batch 6 lifecycle tests: IVS, MediaPackage, DataSync, SES."""
 
+import logging
+
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 
 CREDS = {
     "endpoint_url": "http://localhost:4566",
@@ -74,8 +77,8 @@ def mp_channel_id(mediapackage_client):
     yield resp["Id"]
     try:
         mediapackage_client.delete_channel(Id="test-ch-b6")
-    except Exception:
-        pass  # best-effort cleanup
+    except ClientError as e:
+        logging.debug("pre-cleanup skipped: %s", e)
 
 
 def test_mediapackage_update_channel(mediapackage_client, mp_channel_id):
@@ -124,8 +127,8 @@ def test_mediapackage_harvest_job_lifecycle(mediapackage_client, mp_channel_id):
     finally:
         try:
             mediapackage_client.delete_origin_endpoint(Id="test-ep-b6")
-        except Exception:
-            pass  # best-effort cleanup
+        except ClientError as e:
+            logging.debug("pre-cleanup skipped: %s", e)
 
 
 # ---------------------------------------------------------------------------
