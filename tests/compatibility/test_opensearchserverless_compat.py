@@ -874,3 +874,24 @@ class TestOpenSearchServerlessGapOps:
         with pytest.raises(ClientError) as exc:
             client.update_vpc_endpoint(id="nonexistent-endpoint-id")
         assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+
+class TestOpenSearchServerlessLifecyclePolicyGap:
+    """Tests for UpdateLifecyclePolicy operation."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("opensearchserverless")
+
+    def test_update_lifecycle_policy_nonexistent(self, client):
+        """UpdateLifecyclePolicy raises ResourceNotFoundException for nonexistent policy."""
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            client.update_lifecycle_policy(
+                name="nonexistent-policy",
+                type="retention",
+                policyVersion="MTY4NTU2MDM4NDQ2NV8x",
+                policy='{"Rules":[{"ResourceType":"index","Resource":["index/test-collection/*"],"MinIndexRetention":"81d"}]}',
+            )
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"

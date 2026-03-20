@@ -1140,3 +1140,35 @@ class TestLakeFormationGapOps:
             Permissions=["ALL"],
         )
         assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestLakeFormationNewStubOps:
+    """Tests for newly-implemented lakeformation stub operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("lakeformation")
+
+    def test_list_lake_formation_opt_ins(self, client):
+        """ListLakeFormationOptIns returns empty list by default."""
+        resp = client.list_lake_formation_opt_ins()
+        assert "LakeFormationOptInsInfoList" in resp
+        assert isinstance(resp["LakeFormationOptInsInfoList"], list)
+
+    def test_list_table_storage_optimizers(self, client):
+        """ListTableStorageOptimizers returns empty list for nonexistent table."""
+        resp = client.list_table_storage_optimizers(
+            DatabaseName="nonexistent-db",
+            TableName="nonexistent-table",
+        )
+        assert "StorageOptimizerList" in resp
+        assert isinstance(resp["StorageOptimizerList"], list)
+
+    def test_get_table_objects(self, client):
+        """GetTableObjects returns empty list for nonexistent table."""
+        resp = client.get_table_objects(
+            DatabaseName="nonexistent-db",
+            TableName="nonexistent-table",
+        )
+        assert "Objects" in resp
+        assert isinstance(resp["Objects"], list)

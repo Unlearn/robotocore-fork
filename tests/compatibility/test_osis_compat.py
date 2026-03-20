@@ -248,3 +248,23 @@ class TestOSISMissingGapOps:
     def test_get_pipeline_change_progress(self, osis):
         resp = osis.get_pipeline_change_progress(PipelineName="fake-pipeline")
         assert "ChangeProgressStatuses" in resp
+
+
+class TestOSISEndpointGapOps:
+    """Tests for newly-implemented OSIS pipeline endpoint operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("osis")
+
+    def test_list_pipeline_endpoints(self, client):
+        """ListPipelineEndpoints returns empty list when no endpoints exist."""
+        resp = client.list_pipeline_endpoints()
+        assert "PipelineEndpoints" in resp
+        assert isinstance(resp["PipelineEndpoints"], list)
+
+    def test_list_pipeline_endpoint_connections(self, client):
+        """ListPipelineEndpointConnections returns empty list when no connections exist."""
+        resp = client.list_pipeline_endpoint_connections()
+        assert "PipelineEndpointConnections" in resp
+        assert isinstance(resp["PipelineEndpointConnections"], list)
