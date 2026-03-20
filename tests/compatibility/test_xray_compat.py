@@ -604,3 +604,10 @@ class TestXRayTraceSegmentDestination:
         resp = xray.get_trace_segment_destination()
         assert "Destination" in resp
         assert "Status" in resp
+
+    def test_update_trace_segment_destination(self, xray):
+        """UpdateTraceSegmentDestination returns updated destination."""
+        resp = xray.update_trace_segment_destination(Destination="XRay")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        assert "Destination" in resp
+        assert resp["Destination"] == "XRay"
