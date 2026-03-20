@@ -1088,3 +1088,34 @@ class TestOrganizationsNewStubOps:
         )
         assert "Accounts" in resp
         assert isinstance(resp["Accounts"], list)
+
+    def test_leave_organization(self, client):
+        """LeaveOrganization succeeds (stub no-op)."""
+        # LeaveOrganization typically fails if the org has policies - just check it doesn't 500
+        try:
+            resp = client.leave_organization()
+            assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        except client.exceptions.ClientError as e:
+            # Expected if account is master or org has members
+            assert e.response["Error"]["Code"] in (
+                "AWSOrganizationsNotInUseException",
+                "MasterCannotLeaveOrganizationException",
+                "OrganizationNotEmptyException",
+            )
+
+    def test_list_inbound_responsibility_transfers(self, client):
+        """ListInboundResponsibilityTransfers returns empty list."""
+        resp = client.list_inbound_responsibility_transfers(Type="BILLING")
+        assert "ResponsibilityTransfers" in resp
+
+    def test_list_outbound_responsibility_transfers(self, client):
+        """ListOutboundResponsibilityTransfers returns empty list."""
+        resp = client.list_outbound_responsibility_transfers(Type="BILLING")
+        assert "ResponsibilityTransfers" in resp
+
+    def test_list_effective_policy_validation_errors(self, client):
+        """ListEffectivePolicyValidationErrors returns empty validation errors list."""
+        resp = client.list_effective_policy_validation_errors(
+            AccountId="123456789012", PolicyType="AISERVICES_OPT_OUT_POLICY"
+        )
+        assert "EffectivePolicyValidationErrors" in resp

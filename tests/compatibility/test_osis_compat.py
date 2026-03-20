@@ -268,3 +268,32 @@ class TestOSISEndpointGapOps:
         resp = client.list_pipeline_endpoint_connections()
         assert "PipelineEndpointConnections" in resp
         assert isinstance(resp["PipelineEndpointConnections"], list)
+
+
+class TestOSISPipelineEndpointOps:
+    """Tests for pipeline endpoint stubs."""
+
+    @pytest.fixture
+    def osis(self):
+        return make_client("osis")
+
+    def test_create_pipeline_endpoint(self, osis):
+        """CreatePipelineEndpoint returns endpoint status."""
+        resp = osis.create_pipeline_endpoint(
+            PipelineArn="arn:aws:osis:us-east-1:123456789012:pipeline/test-pipeline",
+            VpcOptions={"SubnetIds": ["subnet-abc12345"]},
+        )
+        assert "Status" in resp
+
+    def test_delete_pipeline_endpoint(self, osis):
+        """DeletePipelineEndpoint succeeds."""
+        resp = osis.delete_pipeline_endpoint(EndpointId="vpce-abc12345")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_revoke_pipeline_endpoint_connections(self, osis):
+        """RevokePipelineEndpointConnections returns PipelineArn."""
+        resp = osis.revoke_pipeline_endpoint_connections(
+            PipelineArn="arn:aws:osis:us-east-1:123456789012:pipeline/test-pipeline",
+            EndpointIds=["vpce-abc12345"],
+        )
+        assert "PipelineArn" in resp
