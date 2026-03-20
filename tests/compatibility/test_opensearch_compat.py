@@ -1729,3 +1729,21 @@ class TestOpenSearchNewStubOps:
             assert "CancelledChangeIds" in resp
         finally:
             opensearch.delete_domain(DomainName=name)
+
+    def test_get_index(self, opensearch):
+        """GetIndex returns response (stub)."""
+        name = _unique_domain()
+        opensearch.create_domain(DomainName=name)
+        try:
+            resp = opensearch.get_index(DomainName=name, IndexName="test-index")
+            assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        finally:
+            opensearch.delete_domain(DomainName=name)
+
+    def test_put_default_application_setting(self, opensearch):
+        """PutDefaultApplicationSetting succeeds."""
+        resp = opensearch.put_default_application_setting(
+            applicationArn="arn:aws:opensearch:us-east-1:123456789012:application/test-app",
+            setAsDefault=True,
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200

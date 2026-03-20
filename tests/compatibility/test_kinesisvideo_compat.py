@@ -426,3 +426,45 @@ class TestKinesisVideoMediaStorageOps:
                 ChannelARN="arn:aws:kinesisvideo:us-east-1:123456789012:channel/nonexistent/123"
             )
         assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+
+class TestKinesisVideoEdgeConfigOps:
+    """Tests for edge configuration operations."""
+
+    @pytest.fixture
+    def kv(self):
+        return make_client("kinesisvideo")
+
+    def test_describe_edge_configuration(self, kv):
+        """DescribeEdgeConfiguration returns edge config (stub)."""
+        resp = kv.describe_edge_configuration(StreamName="nonexistent-stream")
+        assert "EdgeConfig" in resp or resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_list_edge_agent_configurations(self, kv):
+        """ListEdgeAgentConfigurations returns empty list."""
+        resp = kv.list_edge_agent_configurations(
+            HubDeviceArn="arn:aws:kinesisvideo:us-east-1:123456789012:device/test/123"
+        )
+        assert "EdgeConfigs" in resp
+
+    def test_delete_edge_configuration(self, kv):
+        """DeleteEdgeConfiguration succeeds (stub)."""
+        resp = kv.delete_edge_configuration(StreamName="nonexistent-stream")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_update_media_storage_configuration(self, kv):
+        """UpdateMediaStorageConfiguration succeeds (stub)."""
+        resp = kv.update_media_storage_configuration(
+            ChannelARN="arn:aws:kinesisvideo:us-east-1:123456789012:channel/test/123",
+            MediaStorageConfiguration={"Status": "DISABLED"},
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_update_stream_storage_configuration(self, kv):
+        """UpdateStreamStorageConfiguration succeeds (stub)."""
+        resp = kv.update_stream_storage_configuration(
+            StreamName="nonexistent-stream",
+            CurrentVersion="1",
+            StreamStorageConfiguration={"DefaultStorageTier": "ARCHIVE"},
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
