@@ -83,7 +83,7 @@ def get_event_source_mappings() -> list[dict]:
 
 
 def _get_moto_backend(account_id: str, region: str):
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 
@@ -420,7 +420,7 @@ def _handle_recursion_config(
     func_name: str, method: str, body: bytes, region: str, account_id: str
 ) -> Response:
     """Handle GET/PUT for function recursion config."""
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     backend = get_backend("lambda")[account_id][region]
     # Verify function exists

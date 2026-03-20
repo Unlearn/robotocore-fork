@@ -90,7 +90,7 @@ def _invoke_lambda_sync(
 
     try:
         try:
-            from moto.backends import get_backend
+            from moto.backends import get_backend  # noqa: I001
 
             from moto.core import DEFAULT_ACCOUNT_ID
 

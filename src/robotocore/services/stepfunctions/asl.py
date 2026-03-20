@@ -567,7 +567,7 @@ class ASLExecutor:
         function_name = parts[-1] if parts else resource
 
         try:
-            from moto.backends import get_backend
+            from moto.backends import get_backend  # noqa: I001
 
             from moto.core import DEFAULT_ACCOUNT_ID
 
@@ -649,7 +649,7 @@ class ASLExecutor:
     def _invoke_dynamodb(self, action: str, input_data: Any) -> Any:
         """DynamoDB integration via Moto backend."""
         try:
-            from moto.backends import get_backend
+            from moto.backends import get_backend  # noqa: I001
 
             from moto.core import DEFAULT_ACCOUNT_ID
 

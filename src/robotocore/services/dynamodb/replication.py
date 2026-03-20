@@ -95,7 +95,7 @@ def _replicate_to_region(
     account_id: str,
 ) -> None:
     """Replicate a single write to a target region via Moto backend."""
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 
@@ -137,7 +137,7 @@ def _replicate_updated_item(
     now: float,
 ) -> None:
     """Replicate an UpdateItem by reading from source and putting to target."""
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 
@@ -203,7 +203,7 @@ def create_replica_table(
 
     Returns True if the table was created successfully.
     """
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 
@@ -306,7 +306,7 @@ def backfill_replica(
 
     Returns the number of items copied.
     """
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 
@@ -367,7 +367,7 @@ def delete_replica_table(
 
     Returns True if deleted successfully.
     """
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 

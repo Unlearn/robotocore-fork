@@ -28,7 +28,7 @@ def _ttl_enabled():
 
 
 def _get_backend(region: str = "us-east-1"):
-    from moto.backends import get_backend
+    from moto.backends import get_backend  # noqa: I001
 
     from moto.core import DEFAULT_ACCOUNT_ID
 
