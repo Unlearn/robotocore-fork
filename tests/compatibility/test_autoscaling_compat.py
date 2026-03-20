@@ -1381,3 +1381,76 @@ class TestAutoScalingPredictiveScaling:
                 EndTime=datetime.datetime(2026, 1, 2),
             )
         assert exc.value.response["Error"]["Code"] == "ValidationError"
+
+
+class TestAutoScalingTrafficSourcesNew:
+    """Tests for AttachTrafficSources, DetachTrafficSources."""
+
+    TG_ARN = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/test/1234567890123456"
+
+    def test_attach_traffic_sources_nonexistent(self, autoscaling):
+        """AttachTrafficSources with nonexistent ASG raises ValidationError."""
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            autoscaling.attach_traffic_sources(
+                AutoScalingGroupName="nonexistent-asg-xyz",
+                TrafficSources=[{"Identifier": self.TG_ARN, "Type": "elbv2"}],
+            )
+        assert exc.value.response["Error"]["Code"] == "ValidationError"
+
+    def test_detach_traffic_sources_nonexistent(self, autoscaling):
+        """DetachTrafficSources with nonexistent ASG raises ValidationError."""
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            autoscaling.detach_traffic_sources(
+                AutoScalingGroupName="nonexistent-asg-xyz",
+                TrafficSources=[{"Identifier": self.TG_ARN, "Type": "elbv2"}],
+            )
+        assert exc.value.response["Error"]["Code"] == "ValidationError"
+
+
+class TestAutoScalingLifecycle:
+    """Tests for CompleteLifecycleAction and RecordLifecycleActionHeartbeat."""
+
+    def test_complete_lifecycle_action_nonexistent(self, autoscaling):
+        """CompleteLifecycleAction with nonexistent ASG raises ValidationError."""
+        import uuid
+
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            autoscaling.complete_lifecycle_action(
+                LifecycleHookName="test-hook",
+                AutoScalingGroupName="nonexistent-asg-xyz",
+                LifecycleActionResult="CONTINUE",
+                LifecycleActionToken=str(uuid.uuid4()),
+            )
+        assert exc.value.response["Error"]["Code"] == "ValidationError"
+
+    def test_record_lifecycle_action_heartbeat_nonexistent(self, autoscaling):
+        """RecordLifecycleActionHeartbeat with nonexistent ASG raises ValidationError."""
+        import uuid
+
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            autoscaling.record_lifecycle_action_heartbeat(
+                LifecycleHookName="test-hook",
+                AutoScalingGroupName="nonexistent-asg-xyz",
+                LifecycleActionToken=str(uuid.uuid4()),
+            )
+        assert exc.value.response["Error"]["Code"] == "ValidationError"
+
+
+class TestAutoScalingRollback:
+    """Tests for RollbackInstanceRefresh."""
+
+    def test_rollback_instance_refresh_nonexistent(self, autoscaling):
+        """RollbackInstanceRefresh with nonexistent ASG raises ValidationError."""
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            autoscaling.rollback_instance_refresh(AutoScalingGroupName="nonexistent-asg-xyz")
+        assert exc.value.response["Error"]["Code"] == "ValidationError"

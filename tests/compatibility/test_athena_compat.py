@@ -1324,3 +1324,13 @@ class TestAthenaCapacityReservation:
         with pytest.raises(ClientError) as exc:
             athena.update_capacity_reservation(TargetDpus=8, Name="nonexistent-cap-res-12345")
         assert exc.value.response["Error"]["Code"] == "InvalidArgumentException"
+
+
+class TestAthenaGetCapacityAssignmentConfig:
+    def test_get_capacity_assignment_configuration(self, athena):
+        """GetCapacityAssignmentConfiguration returns a config structure."""
+        resp = athena.get_capacity_assignment_configuration(
+            CapacityReservationName="test-reservation-xyz"
+        )
+        assert "CapacityAssignmentConfiguration" in resp
+        assert "CapacityReservationName" in resp["CapacityAssignmentConfiguration"]
