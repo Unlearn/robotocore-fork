@@ -2570,3 +2570,22 @@ class TestLogsStreamingGapOps:
         # ChecksumMismatch before a ClientError is raised
         with pytest.raises((ClientError, ChecksumMismatch)):
             no_prefix_client.get_log_object(logObjectPointer="pointer-abc123")
+
+    def test_start_live_tail_raises_exception(self, client):
+        """StartLiveTail uses streaming- host prefix; returns event stream or 501."""
+        import boto3
+        from botocore.config import Config
+        from botocore.eventstream import ChecksumMismatch
+
+        no_prefix_client = boto3.client(
+            "logs",
+            endpoint_url="http://localhost:4566",
+            region_name="us-east-1",
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+            config=Config(inject_host_prefix=False),
+        )
+        with pytest.raises((ClientError, ChecksumMismatch)):
+            no_prefix_client.start_live_tail(
+                logGroupIdentifiers=["arn:aws:logs:us-east-1:123456789012:log-group:test"]
+            )
