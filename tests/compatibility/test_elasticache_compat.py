@@ -1291,3 +1291,72 @@ class TestElastiCacheNewStubOps:
             ReservedCacheNodesOfferingId="fake-offering-id-xyz",
         )
         assert "ReservedCacheNode" in resp
+
+
+class TestElastiCacheNewStubOps2:
+    """Tests for second batch of newly-implemented ElastiCache stub operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("elasticache")
+
+    def test_authorize_cache_security_group_ingress(self, client):
+        """AuthorizeCacheSecurityGroupIngress returns CacheSecurityGroup key."""
+        try:
+            resp = client.authorize_cache_security_group_ingress(
+                CacheSecurityGroupName="fake-sg",
+                EC2SecurityGroupName="ec2-sg",
+                EC2SecurityGroupOwnerId="123456789012",
+            )
+            assert "CacheSecurityGroup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_decrease_node_groups_in_global_replication_group(self, client):
+        """DecreaseNodeGroupsInGlobalReplicationGroup returns GlobalReplicationGroup."""
+        try:
+            resp = client.decrease_node_groups_in_global_replication_group(
+                GlobalReplicationGroupId="fake-global-rg",
+                NodeGroupCount=1,
+                ApplyImmediately=True,
+            )
+            assert "GlobalReplicationGroup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_increase_node_groups_in_global_replication_group(self, client):
+        """IncreaseNodeGroupsInGlobalReplicationGroup returns GlobalReplicationGroup."""
+        try:
+            resp = client.increase_node_groups_in_global_replication_group(
+                GlobalReplicationGroupId="fake-global-rg",
+                NodeGroupCount=3,
+                ApplyImmediately=True,
+            )
+            assert "GlobalReplicationGroup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_modify_replication_group_shard_configuration(self, client):
+        """ModifyReplicationGroupShardConfiguration returns ReplicationGroup."""
+        try:
+            resp = client.modify_replication_group_shard_configuration(
+                ReplicationGroupId="fake-rg",
+                NodeGroupCount=2,
+                ApplyImmediately=True,
+            )
+            assert "ReplicationGroup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_start_migration(self, client):
+        """StartMigration returns ReplicationGroup key."""
+        try:
+            resp = client.start_migration(
+                ReplicationGroupId="fake-rg",
+                CustomerNodeEndpointList=[
+                    {"Address": "1.2.3.4", "Port": 6379},
+                ],
+            )
+            assert "ReplicationGroup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None

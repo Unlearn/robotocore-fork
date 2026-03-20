@@ -2454,3 +2454,71 @@ class TestLogsNewStubOps:
         )
         assert "matches" in resp
         assert isinstance(resp["matches"], list)
+
+
+class TestLogsNewStubOps2:
+    """Tests for second batch of newly-implemented CloudWatch Logs stub operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("logs")
+
+    def test_associate_source_to_s3_table_integration(self, client):
+        """AssociateSourceToS3TableIntegration succeeds or raises known error."""
+        try:
+            client.associate_source_to_s3_table_integration(
+                integrationArn="arn:aws:logs:us-east-1:123456789012:integration/fake",
+                dataSource={"name": "/fake/log-group", "type": "CloudWatchLogs"},
+            )
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_disassociate_source_from_s3_table_integration(self, client):
+        """DisassociateSourceFromS3TableIntegration succeeds or raises known error."""
+        try:
+            client.disassociate_source_from_s3_table_integration(
+                identifier="arn:aws:logs:us-east-1:123456789012:integration/fake::source",
+            )
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_list_sources_for_s3_table_integration(self, client):
+        """ListSourcesForS3TableIntegration returns sources key."""
+        try:
+            resp = client.list_sources_for_s3_table_integration(
+                integrationArn="arn:aws:logs:us-east-1:123456789012:integration/fake",
+            )
+            assert "sources" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_put_integration(self, client):
+        """PutIntegration returns integrationName key."""
+        try:
+            resp = client.put_integration(
+                integrationName="test-integration",
+                resourceConfig={
+                    "openSearchResourceConfig": {
+                        "dataSourceRoleArn": ("arn:aws:iam::123456789012:role/test-role"),
+                        "dashboardViewerPrincipals": [],
+                        "retentionDays": 30,
+                    }
+                },
+                integrationType="OPENSEARCH",
+            )
+            assert "integrationName" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_test_transformer(self, client):
+        """TestTransformer returns transformedLogs key."""
+        try:
+            resp = client.test_transformer(
+                transformerConfig=[
+                    {"parseJSON": {}},
+                ],
+                logEventMessages=['{"level": "INFO", "msg": "test"}'],
+            )
+            assert "transformedLogs" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None

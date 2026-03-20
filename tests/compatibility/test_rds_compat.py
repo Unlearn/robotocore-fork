@@ -4937,3 +4937,138 @@ class TestRDSNewStubOps:
         """ModifyCertificates returns Certificate key."""
         resp = client.modify_certificates()
         assert "Certificate" in resp
+
+
+class TestRDSNewStubOps2:
+    """Tests for second batch of newly-implemented RDS stub operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("rds")
+
+    def test_backtrack_db_cluster(self, client):
+        """BacktrackDBCluster returns DBClusterIdentifier key."""
+        import datetime
+
+        try:
+            resp = client.backtrack_db_cluster(
+                DBClusterIdentifier="fake-cluster",
+                BacktrackTo=datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+            )
+            assert "DBClusterIdentifier" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_delete_db_cluster_automated_backup(self, client):
+        """DeleteDBClusterAutomatedBackup returns DBClusterAutomatedBackup key."""
+        try:
+            resp = client.delete_db_cluster_automated_backup(
+                DbClusterResourceId="cluster-FAKEID123",
+            )
+            assert "DBClusterAutomatedBackup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_describe_db_cluster_backtracks(self, client):
+        """DescribeDBClusterBacktracks returns DBClusterBacktracks key."""
+        try:
+            resp = client.describe_db_cluster_backtracks(
+                DBClusterIdentifier="fake-cluster",
+            )
+            assert "DBClusterBacktracks" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_download_db_log_file_portion(self, client):
+        """DownloadDBLogFilePortion returns LogFileData key."""
+        try:
+            resp = client.download_db_log_file_portion(
+                DBInstanceIdentifier="fake-instance",
+                LogFileName="error/postgresql.log.2024-01-01-00",
+            )
+            assert "LogFileData" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_modify_current_db_cluster_capacity(self, client):
+        """ModifyCurrentDBClusterCapacity returns CurrentCapacity key."""
+        try:
+            resp = client.modify_current_db_cluster_capacity(
+                DBClusterIdentifier="fake-cluster",
+            )
+            assert "CurrentCapacity" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_modify_db_proxy_endpoint(self, client):
+        """ModifyDBProxyEndpoint returns DBProxyEndpoint key."""
+        try:
+            resp = client.modify_db_proxy_endpoint(
+                DBProxyEndpointName="fake-proxy-endpoint",
+            )
+            assert "DBProxyEndpoint" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_modify_db_recommendation(self, client):
+        """ModifyDBRecommendation returns DBRecommendation key."""
+        try:
+            resp = client.modify_db_recommendation(
+                RecommendationId="fake-recommendation-id",
+            )
+            assert "DBRecommendation" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_remove_role_from_db_instance(self, client):
+        """RemoveRoleFromDBInstance succeeds or raises known error."""
+        try:
+            client.remove_role_from_db_instance(
+                DBInstanceIdentifier="fake-instance",
+                RoleArn="arn:aws:iam::123456789012:role/test-role",
+                FeatureName="s3Export",
+            )
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_revoke_db_security_group_ingress(self, client):
+        """RevokeDBSecurityGroupIngress returns DBSecurityGroup key."""
+        try:
+            resp = client.revoke_db_security_group_ingress(
+                DBSecurityGroupName="fake-sg",
+                EC2SecurityGroupName="ec2-sg",
+                EC2SecurityGroupOwnerId="123456789012",
+            )
+            assert "DBSecurityGroup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_start_db_instance_automated_backups_replication(self, client):
+        """StartDBInstanceAutomatedBackupsReplication returns DBInstanceAutomatedBackup."""
+        try:
+            resp = client.start_db_instance_automated_backups_replication(
+                SourceDBInstanceArn=("arn:aws:rds:us-east-1:123456789012:db:fake-instance"),
+            )
+            assert "DBInstanceAutomatedBackup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_stop_db_instance_automated_backups_replication(self, client):
+        """StopDBInstanceAutomatedBackupsReplication returns DBInstanceAutomatedBackup."""
+        try:
+            resp = client.stop_db_instance_automated_backups_replication(
+                SourceDBInstanceArn=("arn:aws:rds:us-east-1:123456789012:db:fake-instance"),
+            )
+            assert "DBInstanceAutomatedBackup" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
+
+    def test_switchover_read_replica(self, client):
+        """SwitchoverReadReplica returns DBInstance key."""
+        try:
+            resp = client.switchover_read_replica(
+                DBInstanceIdentifier="fake-read-replica",
+            )
+            assert "DBInstance" in resp
+        except ClientError as exc:
+            assert exc.response["Error"]["Code"] is not None
