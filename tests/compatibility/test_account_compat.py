@@ -98,3 +98,66 @@ class TestAccountAlternateContact:
         resp = account.get_alternate_contact(AlternateContactType="BILLING")
         assert resp["AlternateContact"]["Name"] == "Updated"
         assert resp["AlternateContact"]["EmailAddress"] == "updated@example.com"
+
+
+class TestAccountNewOps:
+    """Tests for newly implemented Account operations."""
+
+    def test_get_account_information(self, account):
+        """GetAccountInformation returns account ID and name."""
+        resp = account.get_account_information()
+        assert "AccountId" in resp
+        assert "AccountName" in resp
+
+    def test_get_contact_information(self, account):
+        """GetContactInformation returns ContactInformation dict."""
+        resp = account.get_contact_information()
+        assert "ContactInformation" in resp
+
+    def test_put_and_get_contact_information(self, account):
+        """PutContactInformation stores contact info, GetContactInformation retrieves it."""
+        account.put_contact_information(
+            ContactInformation={
+                "FullName": "Test User",
+                "AddressLine1": "123 Main St",
+                "City": "Testville",
+                "StateOrRegion": "CA",
+                "PostalCode": "12345",
+                "CountryCode": "US",
+                "PhoneNumber": "+15555555555",
+            }
+        )
+        resp = account.get_contact_information()
+        ci = resp["ContactInformation"]
+        assert ci["FullName"] == "Test User"
+        assert ci["City"] == "Testville"
+
+    def test_get_primary_email(self, account):
+        """GetPrimaryEmail returns an email address."""
+        resp = account.get_primary_email(AccountId="123456789012")
+        assert "PrimaryEmail" in resp
+
+    def test_get_region_opt_status(self, account):
+        """GetRegionOptStatus returns region name and opt status."""
+        resp = account.get_region_opt_status(RegionName="us-east-1")
+        assert resp["RegionName"] == "us-east-1"
+        assert "RegionOptStatus" in resp
+        assert resp["RegionOptStatus"] in ("ENABLED", "DISABLED", "ENABLING", "DISABLING")
+
+    def test_list_regions(self, account):
+        """ListRegions returns a list of regions."""
+        resp = account.list_regions()
+        assert "Regions" in resp
+        assert isinstance(resp["Regions"], list)
+        assert len(resp["Regions"]) > 0
+
+    def test_list_regions_filtered(self, account):
+        """ListRegions with RegionOptStatusContains filters results."""
+        resp = account.list_regions(RegionOptStatusContains=["ENABLED"])
+        for region in resp["Regions"]:
+            assert region["RegionOptStatus"] == "ENABLED"
+
+    def test_get_gov_cloud_account_information(self, account):
+        """GetGovCloudAccountInformation returns a response."""
+        resp = account.get_gov_cloud_account_information()
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
