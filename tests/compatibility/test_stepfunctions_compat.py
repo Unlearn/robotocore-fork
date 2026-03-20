@@ -1479,3 +1479,26 @@ class TestStepFunctionsAliases:
         with pytest.raises(ClientError) as exc_info:
             sfn.describe_state_machine_alias(stateMachineAliasArn=fake_arn)
         assert exc_info.value.response["Error"]["Code"] == "ResourceNotFound"
+
+
+class TestStepFunctionsMissingGapOps:
+    """Tests for previously-missing StepFunctions operations."""
+
+    def test_get_activity_task_returns_empty(self, sfn):
+        """GetActivityTask returns taskToken and input (empty when no tasks queued)."""
+        name = f"act-{uuid.uuid4().hex[:8]}"
+        create_resp = sfn.create_activity(name=name)
+        activity_arn = create_resp["activityArn"]
+        resp = sfn.get_activity_task(activityArn=activity_arn)
+        assert "taskToken" in resp
+        assert "input" in resp
+        sfn.delete_activity(activityArn=activity_arn)
+
+    def test_redrive_execution_nonexistent_raises(self, sfn):
+        """RedriveExecution raises ExecutionDoesNotExist for unknown execution ARN."""
+        from botocore.exceptions import ClientError
+
+        fake_arn = "arn:aws:states:us-east-1:123456789012:execution:nonexistent-sm:fake-exec"
+        with pytest.raises(ClientError) as exc_info:
+            sfn.redrive_execution(executionArn=fake_arn)
+        assert exc_info.value.response["Error"]["Code"] == "ExecutionDoesNotExist"
