@@ -2258,3 +2258,53 @@ class TestAPIGatewayNewStubOps:
             pathWithQueryString="/",
         )
         assert "status" in resp
+
+
+class TestAPIGatewayDomainNameAccessAssociation:
+    """Tests for DomainNameAccessAssociation ops (new stub ops)."""
+
+    def test_create_domain_name_access_association(self, apigw):
+        """CreateDomainNameAccessAssociation returns association ARN."""
+        resp = apigw.create_domain_name_access_association(
+            domainNameArn="arn:aws:apigateway:us-east-1::/domainnames/test.example.com",
+            accessAssociationSourceType="VPCE",
+            accessAssociationSource="vpce-0a1b2c3d4e5f67890",
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        assert "domainNameAccessAssociationArn" in resp
+
+    def test_get_domain_name_access_associations(self, apigw):
+        """GetDomainNameAccessAssociations returns a list."""
+        resp = apigw.get_domain_name_access_associations()
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        assert "items" in resp
+
+    def test_delete_domain_name_access_association(self, apigw):
+        """DeleteDomainNameAccessAssociation with fake ARN returns 200."""
+        fake_arn = "arn:aws:apigateway:us-east-1:012345678901::/domainNameAccessAssociations/fake"
+        resp = apigw.delete_domain_name_access_association(
+            domainNameAccessAssociationArn=fake_arn,
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_reject_domain_name_access_association(self, apigw):
+        """RejectDomainNameAccessAssociation returns 200."""
+        resp = apigw.reject_domain_name_access_association(
+            domainNameAccessAssociationArn=(
+                "arn:aws:apigateway:us-east-1::/domainNameAccessAssociations/fake"
+            ),
+            domainNameArn="arn:aws:apigateway:us-east-1::/domainnames/test.example.com",
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_get_model_template(self, apigw):
+        """GetModelTemplate returns a template value."""
+        resp = apigw.get_model_template(restApiId="fake-api-id", modelName="Empty")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        assert "value" in resp
+
+    def test_import_documentation_parts(self, apigw):
+        """ImportDocumentationParts returns empty ids list."""
+        resp = apigw.import_documentation_parts(restApiId="fake-api-id", body=b"{}")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+        assert "ids" in resp
