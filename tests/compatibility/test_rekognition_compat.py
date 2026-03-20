@@ -1207,3 +1207,15 @@ class TestRekognitionSearchFacesEdgeCases:
             assert isinstance(resp["DeletedFaces"], list)
         finally:
             rekognition.delete_collection(CollectionId=col_id)
+
+
+class TestRekognitionUsers:
+    """Tests for Rekognition User operations."""
+
+    def test_list_users_nonexistent_collection(self, rekognition):
+        """ListUsers with nonexistent CollectionId raises ResourceNotFoundException."""
+        from botocore.exceptions import ClientError
+
+        with pytest.raises(ClientError) as exc:
+            rekognition.list_users(CollectionId="nonexistent-collection-xyz")
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
