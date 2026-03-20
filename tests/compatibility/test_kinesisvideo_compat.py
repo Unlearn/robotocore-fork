@@ -408,3 +408,21 @@ class TestKinesisVideoMissingGapOps:
             assert upd_resp["ResponseMetadata"]["HTTPStatusCode"] == 200
         finally:
             kinesisvideo_client.delete_stream(StreamARN=arn)
+
+
+class TestKinesisVideoMediaStorageOps:
+    """Tests for media storage configuration operations."""
+
+    @pytest.fixture
+    def kinesisvideo_client(self):
+        return make_client("kinesisvideo")
+
+    def test_describe_media_storage_configuration_nonexistent(self, kinesisvideo_client):
+        """DescribeMediaStorageConfiguration with unknown ARN raises ResourceNotFoundException."""
+        import botocore.exceptions
+
+        with pytest.raises(botocore.exceptions.ClientError) as exc:
+            kinesisvideo_client.describe_media_storage_configuration(
+                ChannelARN="arn:aws:kinesisvideo:us-east-1:123456789012:channel/nonexistent/123"
+            )
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"

@@ -165,3 +165,45 @@ class TestMediaPackageOriginEndpoints:
         endpoint_ids = [ep["Id"] for ep in response["OriginEndpoints"]]
         assert ep1 in endpoint_ids
         assert ep2 in endpoint_ids
+
+
+class TestMediaPackageTagOps:
+    """Tests for tag/untag/list_tags and update_channel operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("mediapackage")
+
+    @pytest.fixture
+    def channel(self, client):
+        channel_id = _unique_id("ch")
+        resp = client.create_channel(Id=channel_id, Tags={"env": "test"})
+        yield {"id": channel_id, "arn": resp["Arn"]}
+        try:
+            client.delete_channel(Id=channel_id)
+        except Exception:
+            pass
+
+    def test_list_tags_for_resource(self, client, channel):
+        """ListTagsForResource returns channel tags."""
+        resp = client.list_tags_for_resource(ResourceArn=channel["arn"])
+        assert "Tags" in resp
+        assert resp["Tags"].get("env") == "test"
+
+    def test_tag_resource(self, client, channel):
+        """TagResource adds tags to a channel."""
+        client.tag_resource(ResourceArn=channel["arn"], Tags={"stage": "prod"})
+        resp = client.list_tags_for_resource(ResourceArn=channel["arn"])
+        assert resp["Tags"].get("stage") == "prod"
+
+    def test_untag_resource(self, client, channel):
+        """UntagResource removes tags from a channel."""
+        client.untag_resource(ResourceArn=channel["arn"], TagKeys=["env"])
+        resp = client.list_tags_for_resource(ResourceArn=channel["arn"])
+        assert "env" not in resp["Tags"]
+
+    def test_update_channel(self, client, channel):
+        """UpdateChannel updates the channel description."""
+        resp = client.update_channel(Id=channel["id"], Description="updated description")
+        assert resp["Description"] == "updated description"
+        assert resp["Id"] == channel["id"]

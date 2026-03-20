@@ -1690,3 +1690,14 @@ class TestOpenSearchMissingGapOps:
         """list_vpc_endpoint_access returns AuthorizedPrincipalList key."""
         response = opensearch.list_vpc_endpoint_access(DomainName="fake-domain")
         assert "AuthorizedPrincipalList" in response
+
+    def test_upgrade_domain(self, opensearch):
+        """upgrade_domain returns DomainName and TargetVersion."""
+        name = f"os-{uuid.uuid4().hex[:8]}"
+        opensearch.create_domain(DomainName=name)
+        try:
+            resp = opensearch.upgrade_domain(DomainName=name, TargetVersion="OpenSearch_2.3")
+            assert resp["DomainName"] == name
+            assert resp["TargetVersion"] == "OpenSearch_2.3"
+        finally:
+            opensearch.delete_domain(DomainName=name)
