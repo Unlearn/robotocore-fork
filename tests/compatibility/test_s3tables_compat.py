@@ -485,3 +485,46 @@ class TestS3TablesOperations:
                 s3tables.delete_namespace(tableBucketARN=table_bucket, namespace=ns)
             except Exception:
                 pass  # best-effort cleanup
+
+
+class TestS3TablesBucketSubPaths:
+    """Tests for PutTableBucketPolicy, PutTableBucketEncryption,
+    PutTableBucketMetricsConfiguration, PutTableBucketMaintenanceConfiguration."""
+
+    def test_put_table_bucket_policy(self, s3tables, table_bucket):
+        """PutTableBucketPolicy stores a policy on the bucket."""
+        resp = s3tables.put_table_bucket_policy(
+            tableBucketARN=table_bucket,
+            resourcePolicy='{"Version":"2012-10-17","Statement":[]}',
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_put_table_bucket_encryption(self, s3tables, table_bucket):
+        """PutTableBucketEncryption sets encryption configuration."""
+        resp = s3tables.put_table_bucket_encryption(
+            tableBucketARN=table_bucket,
+            encryptionConfiguration={"sseAlgorithm": "AES256"},
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_put_table_bucket_metrics_configuration(self, s3tables, table_bucket):
+        """PutTableBucketMetricsConfiguration sets metrics configuration."""
+        resp = s3tables.put_table_bucket_metrics_configuration(tableBucketARN=table_bucket)
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] in (200, 204)
+
+    def test_put_table_bucket_maintenance_configuration(self, s3tables, table_bucket):
+        """PutTableBucketMaintenanceConfiguration sets maintenance configuration."""
+        resp = s3tables.put_table_bucket_maintenance_configuration(
+            tableBucketARN=table_bucket,
+            type="icebergUnreferencedFileRemoval",
+            value={
+                "status": "enabled",
+                "settings": {
+                    "icebergUnreferencedFileRemoval": {
+                        "unreferencedDays": 3,
+                        "nonCurrentDays": 7,
+                    }
+                },
+            },
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] in (200, 204)
