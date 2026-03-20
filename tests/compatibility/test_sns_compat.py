@@ -1520,3 +1520,19 @@ class TestSNSSMSSandbox:
                 PhoneNumber="+19999999999", OneTimePassword="000000"
             )
         assert exc.value.response["Error"]["Code"] == "ResourceNotFound"
+
+
+class TestSNSMissingGapOps:
+    def test_put_and_get_data_protection_policy(self, sns):
+        import uuid
+
+        name = f"test-dpp-{uuid.uuid4().hex[:8]}"
+        resp = sns.create_topic(Name=name)
+        arn = resp["TopicArn"]
+        policy = '{"Name":"test","Statements":[]}'
+        try:
+            sns.put_data_protection_policy(ResourceArn=arn, DataProtectionPolicy=policy)
+            r2 = sns.get_data_protection_policy(ResourceArn=arn)
+            assert r2["DataProtectionPolicy"] == policy
+        finally:
+            sns.delete_topic(TopicArn=arn)
