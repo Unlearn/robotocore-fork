@@ -1418,3 +1418,25 @@ class TestKinesisTagResourceAndStreamMode:
             StreamARN=stream_arn, StreamModeDetails={"StreamMode": "ON_DEMAND"}
         )
         assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestKinesisNewGapOps:
+    """Tests for Kinesis gap operations: UpdateMaxRecordSize, UpdateStreamWarmThroughput."""
+
+    @pytest.fixture
+    def kinesis(self):
+        return make_client("kinesis")
+
+    def test_update_max_record_size_nonexistent(self, kinesis):
+        """UpdateMaxRecordSize raises ResourceNotFoundException for a nonexistent stream."""
+        fake_arn = "arn:aws:kinesis:us-east-1:123456789012:stream/no-such-stream"
+        with pytest.raises(ClientError) as exc:
+            kinesis.update_max_record_size(StreamARN=fake_arn, MaxRecordSizeInKiB=1024)
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+    def test_update_stream_warm_throughput_nonexistent(self, kinesis):
+        """UpdateStreamWarmThroughput raises ResourceNotFoundException for a nonexistent stream."""
+        fake_arn = "arn:aws:kinesis:us-east-1:123456789012:stream/no-such-stream"
+        with pytest.raises(ClientError) as exc:
+            kinesis.update_stream_warm_throughput(StreamARN=fake_arn, WarmThroughputMiBps=1)
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"

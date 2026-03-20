@@ -631,3 +631,41 @@ class TestESGapOps:
         """ListPackagesForDomain returns domain package details list."""
         resp = client.list_packages_for_domain(DomainName=domain)
         assert "DomainPackageDetailsList" in resp
+
+
+class TestESNewVPCAndCancelOps:
+    """Tests for ES operations: AuthorizeVpcEndpointAccess, RevokeVpcEndpointAccess,
+    CancelDomainConfigChange, RejectInboundCrossClusterSearchConnection."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("es")
+
+    @pytest.fixture
+    def domain(self, client):
+        name = f"es-{uuid.uuid4().hex[:8]}"
+        client.create_elasticsearch_domain(DomainName=name)
+        yield name
+        client.delete_elasticsearch_domain(DomainName=name)
+
+    def test_authorize_vpc_endpoint_access(self, client, domain):
+        """AuthorizeVpcEndpointAccess returns AuthorizedPrincipal."""
+        resp = client.authorize_vpc_endpoint_access(DomainName=domain, Account="123456789012")
+        assert "AuthorizedPrincipal" in resp
+
+    def test_revoke_vpc_endpoint_access(self, client, domain):
+        """RevokeVpcEndpointAccess returns 200."""
+        resp = client.revoke_vpc_endpoint_access(DomainName=domain, Account="123456789012")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_cancel_domain_config_change(self, client, domain):
+        """CancelDomainConfigChange returns CancelledChangeIds."""
+        resp = client.cancel_domain_config_change(DomainName=domain, DryRun=True)
+        assert "CancelledChangeIds" in resp
+
+    def test_reject_inbound_cross_cluster_search_connection(self, client):
+        """RejectInboundCrossClusterSearchConnection returns 200."""
+        resp = client.reject_inbound_cross_cluster_search_connection(
+            CrossClusterSearchConnectionId="conn-id-test"
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
