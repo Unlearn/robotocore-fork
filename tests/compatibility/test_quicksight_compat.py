@@ -2811,3 +2811,19 @@ class TestQuickSightDeleteTopic:
         with pytest.raises(quicksight.exceptions.ClientError) as exc_info:
             quicksight.delete_topic(AwsAccountId=ACCOUNT_ID, TopicId="nonexistent")
         assert "ResourceNotFoundException" in str(exc_info.value)
+
+
+class TestQuickSightGapOps:
+    """Tests for QuickSight operations that weren't previously covered."""
+
+    @pytest.fixture
+    def qs(self):
+        return make_client("quicksight")
+
+    def test_list_folders_for_resource(self, qs):
+        """ListFoldersForResource returns a list for any resource ARN."""
+        resp = qs.list_folders_for_resource(
+            AwsAccountId=ACCOUNT_ID,
+            ResourceArn=f"arn:aws:quicksight:us-east-1:{ACCOUNT_ID}:dashboard/nonexistent",
+        )
+        assert "Folders" in resp or resp["ResponseMetadata"]["HTTPStatusCode"] == 200

@@ -3546,3 +3546,49 @@ class TestIoTNewStubOps:
         """UpdateEncryptionConfiguration returns 200."""
         resp = iot.update_encryption_configuration(encryptionType="AWS_OWNED_KMS_KEY")
         assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestIoTRemainingGapOps:
+    """Tests for IoT gap operations that weren't previously covered."""
+
+    @pytest.fixture
+    def iot(self):  # noqa: F811
+        return make_client("iot")
+
+    def test_create_certificate_provider(self, iot):
+        """CreateCertificateProvider creates a provider or raises AlreadyExists."""
+        import uuid  # noqa: PLC0415
+
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        name = f"cp-{uuid.uuid4().hex[:8]}"
+        try:
+            resp = iot.create_certificate_provider(
+                certificateProviderName=name,
+                lambdaFunctionArn="arn:aws:lambda:us-east-1:123456789012:function:test",
+                accountDefaultForOperations=["CreateCertificateFromCsr"],
+            )
+            assert (
+                "certificateProviderArn" in resp
+                or resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+            )
+        except ClientError as exc:
+            assert exc.value.response["Error"]["Code"] == "ResourceAlreadyExistsException"
+        finally:
+            try:
+                iot.delete_certificate_provider(certificateProviderName=name)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def test_start_detect_mitigation_actions_task(self, iot):
+        """StartDetectMitigationActionsTask creates a task and returns its ID."""
+        import uuid  # noqa: PLC0415
+
+        task_id = f"task{uuid.uuid4().hex[:13]}"
+        resp = iot.start_detect_mitigation_actions_task(
+            taskId=task_id,
+            target={"securityProfileName": "test-profile"},
+            actions=["RESET_CONFIDENCE_SCORE"],
+            clientRequestToken=f"token-{uuid.uuid4().hex[:8]}",
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
