@@ -1037,3 +1037,59 @@ class TestTranscribeGapOps:
         with pytest.raises(ClientError) as exc:
             client.delete_medical_scribe_job(MedicalScribeJobName="nonexistent-job-xyz")
         assert exc.value.response["Error"]["Code"] == "BadRequestException"
+
+
+class TestTranscribeRemainingGapOps:
+    """Tests for Transcribe operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("transcribe")
+
+    def test_start_medical_scribe_job(self, client):
+        """StartMedicalScribeJob creates a medical scribe job."""
+        import uuid  # noqa: PLC0415
+
+        name = f"mscribe-{uuid.uuid4().hex[:8]}"
+        resp = client.start_medical_scribe_job(
+            MedicalScribeJobName=name,
+            Media={"MediaFileUri": "s3://test-bucket/test.mp3"},
+            OutputBucketName="test-bucket",
+            DataAccessRoleArn="arn:aws:iam::123456789012:role/TestRole",
+            Settings={"ShowSpeakerLabels": True, "MaxSpeakerLabels": 2},
+        )
+        assert "MedicalScribeJob" in resp
+        try:
+            client.delete_medical_scribe_job(MedicalScribeJobName=name)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def test_update_call_analytics_category_not_found(self, client):
+        """UpdateCallAnalyticsCategory raises BadRequestException for nonexistent category."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.update_call_analytics_category(
+                CategoryName="nonexistent-category-xyz",
+                Rules=[
+                    {
+                        "SentimentFilter": {
+                            "Sentiments": ["POSITIVE"],
+                            "ParticipantRole": "AGENT",
+                        }
+                    }
+                ],
+            )
+        assert exc.value.response["Error"]["Code"] == "BadRequestException"
+
+    def test_update_medical_vocabulary_not_found(self, client):
+        """UpdateMedicalVocabulary raises BadRequestException for nonexistent vocabulary."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.update_medical_vocabulary(
+                VocabularyName="nonexistent-vocab-xyz",
+                LanguageCode="en-US",
+                VocabularyFileUri="s3://test-bucket/vocab.txt",
+            )
+        assert exc.value.response["Error"]["Code"] == "BadRequestException"

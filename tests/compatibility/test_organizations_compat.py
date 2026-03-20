@@ -1119,3 +1119,60 @@ class TestOrganizationsNewStubOps:
             AccountId="123456789012", PolicyType="AISERVICES_OPT_OUT_POLICY"
         )
         assert "EffectivePolicyValidationErrors" in resp
+
+
+class TestOrganizationsResponsibilityTransfer:
+    """Tests for Organizations responsibility transfer operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("organizations")
+
+    def test_describe_responsibility_transfer(self, client):
+        """DescribeResponsibilityTransfer returns 200 for any ID."""
+        resp = client.describe_responsibility_transfer(Id="rt-nonexistent-xyz")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_terminate_responsibility_transfer(self, client):
+        """TerminateResponsibilityTransfer returns 200 for any ID."""
+        resp = client.terminate_responsibility_transfer(Id="rt-nonexistent-xyz")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_update_responsibility_transfer(self, client):
+        """UpdateResponsibilityTransfer returns 200 for any ID."""
+        resp = client.update_responsibility_transfer(
+            Id="rt-nonexistent-xyz",
+            Name="UpdatedTransfer",
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_invite_organization_to_transfer_responsibility(self, client):
+        """InviteOrganizationToTransferResponsibility returns 200."""
+        import datetime  # noqa: PLC0415
+
+        resp = client.invite_organization_to_transfer_responsibility(
+            Type="TRANSFER",
+            Target={"Id": "123456789012", "Type": "ACCOUNT"},
+            StartTimestamp=datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+            SourceName="TestSource",
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestOrganizationsGovCloud:
+    """Tests for Organizations GovCloud operation."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("organizations")
+
+    def test_create_gov_cloud_account_no_org(self, client):
+        """CreateGovCloudAccount raises AWSOrganizationsNotInUseException when no org exists."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.create_gov_cloud_account(
+                Email="govcloud@example.com",
+                AccountName="TestGovCloudAccount",
+            )
+        assert exc.value.response["Error"]["Code"] == "AWSOrganizationsNotInUseException"

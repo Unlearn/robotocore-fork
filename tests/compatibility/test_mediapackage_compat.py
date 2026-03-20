@@ -258,3 +258,22 @@ class TestMediaPackageNewOps:
             assert "Id" in resp
         finally:
             mp.delete_channel(Id=channel_id)
+
+
+class TestMediaPackageGapOps:
+    """Tests for MediaPackage operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("mediapackage")
+
+    def test_rotate_ingest_endpoint_credentials_not_found(self, client):
+        """RotateIngestEndpointCredentials raises NotFoundException for nonexistent channel."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.rotate_ingest_endpoint_credentials(
+                Id="nonexistent-channel-xyz",
+                IngestEndpointId="nonexistent-endpoint-xyz",
+            )
+        assert exc.value.response["Error"]["Code"] == "NotFoundException"

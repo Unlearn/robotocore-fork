@@ -1845,3 +1845,39 @@ class TestEKSMissingGapOps:
         with pytest.raises(ClientError) as exc_info:
             client.describe_access_entry(clusterName=cluster, principalArn=principal_arn)
         assert exc_info.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+
+class TestEKSGapOps:
+    """Tests for EKS operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("eks")
+
+    def test_disassociate_access_policy_not_found(self, client):
+        """DisassociateAccessPolicy raises ResourceNotFoundException for nonexistent cluster."""
+        with pytest.raises(ClientError) as exc:
+            client.disassociate_access_policy(
+                clusterName="nonexistent-cluster-xyz",
+                principalArn="arn:aws:iam::123456789012:role/TestRole",
+                policyArn="arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy",
+            )
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+    def test_update_nodegroup_version_not_found(self, client):
+        """UpdateNodegroupVersion raises ResourceNotFoundException for nonexistent cluster."""
+        with pytest.raises(ClientError) as exc:
+            client.update_nodegroup_version(
+                clusterName="nonexistent-cluster-xyz",
+                nodegroupName="nonexistent-ng",
+            )
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+    def test_update_pod_identity_association_not_found(self, client):
+        """UpdatePodIdentityAssociation raises ResourceNotFoundException for nonexistent cluster."""
+        with pytest.raises(ClientError) as exc:
+            client.update_pod_identity_association(
+                clusterName="nonexistent-cluster-xyz",
+                associationId="nonexistent-assoc-id",
+            )
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"

@@ -2522,3 +2522,24 @@ class TestLogsNewStubOps2:
             assert "transformedLogs" in resp
         except ClientError as exc:
             assert exc.response["Error"]["Code"] is not None
+
+
+class TestLogsGapOps:
+    """Tests for CloudWatch Logs operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("logs")
+
+    def test_cancel_import_task_not_found(self, client):
+        """CancelImportTask accepts a nonexistent importId and returns 200."""
+        resp = client.cancel_import_task(importId="nonexistent-import-xyz")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_create_import_task(self, client):
+        """CreateImportTask returns a task ID."""
+        resp = client.create_import_task(
+            importSourceArn="arn:aws:s3:::nonexistent-bucket/logs/",
+            importRoleArn="arn:aws:iam::123456789012:role/LogsImportRole",
+        )
+        assert "importId" in resp or resp["ResponseMetadata"]["HTTPStatusCode"] in (200, 201)

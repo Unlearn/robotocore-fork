@@ -1090,3 +1090,32 @@ class TestWorkspacesGapOps:
             ImageDescription="A test image",
         )
         assert "ImageId" in resp
+
+
+class TestWorkspacesConnectAddInOps:
+    """Tests for Connect client add-in operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("workspaces")
+
+    def test_delete_connect_client_add_in(self, client):
+        """DeleteConnectClientAddIn returns 200 for a valid UUID add-in ID."""
+        resp = client.delete_connect_client_add_in(
+            AddInId="12345678-1234-1234-1234-123456789012",
+            ResourceId="d-1234567890",
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_update_connect_client_add_in_not_found(self, client):
+        """UpdateConnectClientAddIn raises ResourceNotFoundException for nonexistent add-in."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.update_connect_client_add_in(
+                AddInId="12345678-1234-1234-1234-123456789012",
+                ResourceId="d-1234567890",
+                Name="TestAddIn",
+                URL="https://example.com/connect",
+            )
+        assert exc.value.response["Error"]["Code"] == "ResourceNotFoundException"

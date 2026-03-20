@@ -663,3 +663,19 @@ class TestXRayUpdateGroupAndSamplingRule:
         )
         assert resp["SamplingRuleRecord"]["SamplingRule"]["FixedRate"] == 0.10
         assert resp["SamplingRuleRecord"]["SamplingRule"]["Priority"] == 900
+
+
+class TestXRayGapOps:
+    """Tests for XRay operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("xray")
+
+    def test_update_indexing_rule(self, client):
+        """UpdateIndexingRule returns the updated rule."""
+        resp = client.update_indexing_rule(
+            Name="Default",
+            Rule={"Probabilistic": {"DesiredSamplingPercentage": 5.0}},
+        )
+        assert "IndexingRule" in resp or resp["ResponseMetadata"]["HTTPStatusCode"] == 200

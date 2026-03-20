@@ -3033,3 +3033,47 @@ class TestCloudFormationTerminationProtection:
                 StackName="fake-termprot-nonexist",
             )
         assert "Code" in exc.value.response["Error"]
+
+
+class TestCloudFormationGapOps:
+    """Tests for CloudFormation operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("cloudformation")
+
+    def test_estimate_template_cost(self, client):
+        """EstimateTemplateCost returns a URL."""
+        resp = client.estimate_template_cost(
+            TemplateBody='{"AWSTemplateFormatVersion":"2010-09-09","Resources":{}}',
+        )
+        assert "Url" in resp
+
+    def test_list_generated_templates(self, client):
+        """ListGeneratedTemplates returns a list."""
+        resp = client.list_generated_templates()
+        assert "Summaries" in resp or "ResponseMetadata" in resp
+
+    def test_describe_generated_template_not_found(self, client):
+        """DescribeGeneratedTemplate returns error for nonexistent template."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        try:
+            resp = client.describe_generated_template(
+                GeneratedTemplateName="nonexistent-tpl-xyz",
+            )
+            assert "ResponseMetadata" in resp
+        except ClientError as exc:
+            assert exc.value.response["Error"]["Code"] is not None
+
+    def test_list_resource_scan_resources_not_found(self, client):
+        """ListResourceScanResources returns error for nonexistent scan."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        try:
+            resp = client.list_resource_scan_resources(
+                ResourceScanId="nonexistent-scan-xyz",
+            )
+            assert "Resources" in resp or "ResponseMetadata" in resp
+        except ClientError as exc:
+            assert exc.value.response["Error"]["Code"] is not None

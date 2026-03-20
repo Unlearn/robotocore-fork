@@ -1453,3 +1453,22 @@ class TestRekognitionNewStubOps:
             Changes={"GroundTruth": b"{}"},
         )
         assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestRekognitionGapOps:
+    """Tests for Rekognition operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("rekognition")
+
+    def test_distribute_dataset_entries(self, client):
+        """DistributeDatasetEntries returns 200 with valid dataset ARNs."""
+        base = "arn:aws:rekognition:us-east-1:123456789012:project/testproj/dataset"
+        resp = client.distribute_dataset_entries(
+            Datasets=[
+                {"Arn": f"{base}/TRAIN/1"},
+                {"Arn": f"{base}/TEST/2"},
+            ]
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200

@@ -3152,3 +3152,55 @@ class TestLambdaUpdateCodeSigningConfig:
             assert new_arn in csc["AllowedPublishers"]["SigningProfileVersionArns"]
         finally:
             lam.delete_code_signing_config(CodeSigningConfigArn=csc_arn)
+
+
+class TestLambdaDurableExecutionCallbacks:
+    """Tests for the remaining DurableExecution callback operations."""
+
+    @pytest.fixture
+    def lam(self):  # noqa: F811
+        return make_client("lambda")
+
+    _EXEC_ARN = "arn:aws:lambda:us-east-1:123456789012:function:test:durable/nonexistent"
+
+    def test_checkpoint_durable_execution(self, lam):
+        """CheckpointDurableExecution returns InvalidRequest for fake execution."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            lam.checkpoint_durable_execution(
+                DurableExecutionArn=self._EXEC_ARN,
+                CheckpointToken="test-checkpoint-token",
+            )
+        assert exc.value.response["Error"]["Code"] == "InvalidRequest"
+
+    def test_get_durable_execution_state(self, lam):
+        """GetDurableExecutionState returns InvalidRequest for fake execution."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            lam.get_durable_execution_state(
+                DurableExecutionArn=self._EXEC_ARN,
+                CheckpointToken="test-checkpoint-token",
+            )
+        assert exc.value.response["Error"]["Code"] == "InvalidRequest"
+
+    def test_send_durable_execution_callback_heartbeat(self, lam):
+        """SendDurableExecutionCallbackHeartbeat returns 200 for any callbackId."""
+        resp = lam.send_durable_execution_callback_heartbeat(CallbackId="test-callback-xyz")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_send_durable_execution_callback_success(self, lam):
+        """SendDurableExecutionCallbackSuccess returns 200 for any callbackId."""
+        resp = lam.send_durable_execution_callback_success(
+            CallbackId="test-callback-xyz", Result="{}"
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_send_durable_execution_callback_failure(self, lam):
+        """SendDurableExecutionCallbackFailure returns 200 for any callbackId."""
+        resp = lam.send_durable_execution_callback_failure(
+            CallbackId="test-callback-xyz",
+            Error={"ErrorMessage": "simulated failure"},
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200

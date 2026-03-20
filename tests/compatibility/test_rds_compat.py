@@ -5072,3 +5072,62 @@ class TestRDSNewStubOps2:
             assert "DBInstance" in resp
         except ClientError as exc:
             assert exc.response["Error"]["Code"] is not None
+
+
+class TestRDSGapOps:
+    """Tests for RDS operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("rds")
+
+    def test_restore_db_cluster_from_s3(self, client):
+        """RestoreDBClusterFromS3 creates a DB cluster from S3 backup data."""
+        import uuid  # noqa: PLC0415
+
+        cluster_id = f"s3-cluster-{uuid.uuid4().hex[:8]}"
+        try:
+            resp = client.restore_db_cluster_from_s3(
+                DBClusterIdentifier=cluster_id,
+                Engine="aurora-mysql",
+                MasterUsername="admin",
+                MasterUserPassword="Password123!",
+                S3BucketName="test-backup-bucket",
+                S3IngestionRoleArn="arn:aws:iam::123456789012:role/S3RestoreRole",
+                SourceEngine="mysql",
+                SourceEngineVersion="5.7.40",
+            )
+            assert "DBCluster" in resp
+        finally:
+            try:
+                client.delete_db_cluster(DBClusterIdentifier=cluster_id, SkipFinalSnapshot=True)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def test_restore_db_instance_from_s3(self, client):
+        """RestoreDBInstanceFromS3 creates a DB instance from S3 backup data."""
+        import uuid  # noqa: PLC0415
+
+        instance_id = f"s3-inst-{uuid.uuid4().hex[:8]}"
+        try:
+            resp = client.restore_db_instance_from_s3(
+                DBInstanceIdentifier=instance_id,
+                DBInstanceClass="db.t3.micro",
+                Engine="mysql",
+                MasterUsername="admin",
+                MasterUserPassword="Password123!",
+                S3BucketName="test-backup-bucket",
+                S3IngestionRoleArn="arn:aws:iam::123456789012:role/S3RestoreRole",
+                SourceEngine="mysql",
+                SourceEngineVersion="5.7.40",
+            )
+            assert "DBInstance" in resp
+        finally:
+            try:
+                client.delete_db_instance(
+                    DBInstanceIdentifier=instance_id,
+                    SkipFinalSnapshot=True,
+                    DeleteAutomatedBackups=True,
+                )
+            except Exception:  # noqa: BLE001
+                pass

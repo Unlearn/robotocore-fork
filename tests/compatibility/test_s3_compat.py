@@ -2290,3 +2290,44 @@ class TestS3RestoreObject:
                 RestoreRequest={"Days": 7},
             )
         assert exc.value.response["Error"]["Code"] == "NoSuchBucket"
+
+
+class TestS3GapOps:
+    """Tests for S3 operations that weren't previously covered."""
+
+    @pytest.fixture
+    def client(self):
+        return boto3.client(
+            "s3",
+            endpoint_url=ENDPOINT_URL,
+            region_name="us-east-1",
+            aws_access_key_id="testing",
+            aws_secret_access_key="testing",
+        )
+
+    def test_rename_object_no_such_bucket(self, client):
+        """RenameObject raises NoSuchBucket for nonexistent bucket."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.rename_object(
+                Bucket="nonexistent-bucket-xyz-rename",
+                Key="test-key",
+                RenameSource="source-key",
+            )
+        assert exc.value.response["Error"]["Code"] == "NoSuchBucket"
+
+    def test_select_object_content_no_such_bucket(self, client):
+        """SelectObjectContent raises NoSuchBucket for nonexistent bucket."""
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        with pytest.raises(ClientError) as exc:
+            client.select_object_content(
+                Bucket="nonexistent-bucket-xyz-select",
+                Key="test.json",
+                Expression="SELECT * FROM S3Object",
+                ExpressionType="SQL",
+                InputSerialization={"JSON": {"Type": "DOCUMENT"}},
+                OutputSerialization={"JSON": {}},
+            )
+        assert exc.value.response["Error"]["Code"] == "NoSuchBucket"
