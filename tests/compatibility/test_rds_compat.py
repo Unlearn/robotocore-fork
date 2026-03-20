@@ -4804,3 +4804,107 @@ class TestRDSParameterGroupCRUD:
         """DeleteDBInstanceAutomatedBackup returns the backup record."""
         resp = client.delete_db_instance_automated_backup(DbiResourceId=_unique("fake-resource"))
         assert "DBInstanceAutomatedBackup" in resp
+
+    def test_reset_db_parameter_group(self, client):
+        """ResetDBParameterGroup resets a parameter group."""
+        name = _unique("compat-reset-pg")
+        client.create_db_parameter_group(
+            DBParameterGroupName=name,
+            DBParameterGroupFamily="mysql8.0",
+            Description="compat reset test",
+        )
+        try:
+            resp = client.reset_db_parameter_group(
+                DBParameterGroupName=name, ResetAllParameters=True
+            )
+            assert resp["DBParameterGroupName"] == name
+        finally:
+            client.delete_db_parameter_group(DBParameterGroupName=name)
+
+    def test_reset_db_cluster_parameter_group(self, client):
+        """ResetDBClusterParameterGroup resets a cluster parameter group."""
+        name = _unique("compat-reset-cpg")
+        client.create_db_cluster_parameter_group(
+            DBClusterParameterGroupName=name,
+            DBParameterGroupFamily="aurora-mysql8.0",
+            Description="compat reset cluster test",
+        )
+        try:
+            resp = client.reset_db_cluster_parameter_group(
+                DBClusterParameterGroupName=name, ResetAllParameters=True
+            )
+            assert resp["DBClusterParameterGroupName"] == name
+        finally:
+            client.delete_db_cluster_parameter_group(DBClusterParameterGroupName=name)
+
+
+class TestRDSMissingGapOps:
+    """Tests for newly implemented RDS operations that were previously 501."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("rds")
+
+    def test_describe_source_regions(self, client):
+        """DescribeSourceRegions returns a list of available source regions."""
+        resp = client.describe_source_regions()
+        assert "SourceRegions" in resp
+        assert len(resp["SourceRegions"]) > 0
+        region = resp["SourceRegions"][0]
+        assert "RegionName" in region
+        assert "Endpoint" in region
+
+    def test_describe_db_major_engine_versions(self, client):
+        """DescribeDBMajorEngineVersions returns a list of major engine versions."""
+        resp = client.describe_db_major_engine_versions()
+        assert "DBMajorEngineVersions" in resp
+        assert len(resp["DBMajorEngineVersions"]) > 0
+        version = resp["DBMajorEngineVersions"][0]
+        assert "Engine" in version
+        assert "MajorEngineVersion" in version
+
+    def test_reboot_db_cluster(self, client):
+        """RebootDBCluster returns the cluster record."""
+        cluster_id = _unique("compat-reboot-cluster")
+        client.create_db_cluster(
+            DBClusterIdentifier=cluster_id,
+            Engine="aurora-mysql",
+            MasterUsername="admin",
+            MasterUserPassword="password123!",
+        )
+        try:
+            resp = client.reboot_db_cluster(DBClusterIdentifier=cluster_id)
+            assert "DBCluster" in resp
+            assert resp["DBCluster"]["DBClusterIdentifier"] == cluster_id
+        finally:
+            client.delete_db_cluster(DBClusterIdentifier=cluster_id, SkipFinalSnapshot=True)
+
+    def test_remove_role_from_db_cluster(self, client):
+        """RemoveRoleFromDBCluster removes an IAM role from a cluster."""
+        cluster_id = _unique("compat-remove-role")
+        role_arn = "arn:aws:iam::123456789012:role/compat-test-role"
+        client.create_db_cluster(
+            DBClusterIdentifier=cluster_id,
+            Engine="aurora-mysql",
+            MasterUsername="admin",
+            MasterUserPassword="password123!",
+        )
+        try:
+            client.add_role_to_db_cluster(
+                DBClusterIdentifier=cluster_id,
+                RoleArn=role_arn,
+                FeatureName="s3Export",
+            )
+            # Should succeed without error
+            client.remove_role_from_db_cluster(
+                DBClusterIdentifier=cluster_id,
+                RoleArn=role_arn,
+                FeatureName="s3Export",
+            )
+            # Verify role removed
+            resp = client.describe_db_clusters(DBClusterIdentifier=cluster_id)
+            cluster = resp["DBClusters"][0]
+            role_arns = [r["RoleArn"] for r in cluster.get("AssociatedRoles", [])]
+            assert role_arn not in role_arns
+        finally:
+            client.delete_db_cluster(DBClusterIdentifier=cluster_id, SkipFinalSnapshot=True)
