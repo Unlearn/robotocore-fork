@@ -1320,3 +1320,32 @@ class TestLakeFormationQueryPlanningOps:
         qid = start["QueryId"]
         resp = client.get_work_unit_results(QueryId=qid, WorkUnitId=0, WorkUnitToken="token")
         assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestLakeFormationAssumeDecoratedRoleGapOp:
+    """Test AssumeDecoratedRoleWithSAML (returns 501 NotImplemented)."""
+
+    def test_assume_decorated_role_with_saml_not_implemented(self):
+        import boto3
+        from botocore.config import Config
+        from botocore.exceptions import ClientError
+
+        client = boto3.client(
+            "lakeformation",
+            endpoint_url="http://localhost:4566",
+            region_name="us-east-1",
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+            config=Config(inject_host_prefix=False),
+        )
+        with pytest.raises(ClientError) as exc:
+            client.assume_decorated_role_with_saml(
+                SAMLAssertion="a" * 100,
+                RoleArn="arn:aws:iam::123456789012:role/lakeformation-saml-role",
+                PrincipalArn="arn:aws:iam::123456789012:saml-provider/my-provider",
+            )
+        assert exc.value.response["Error"]["Code"] in (
+            "NotImplemented",
+            "AccessDeniedException",
+            "InvalidInputException",
+        )

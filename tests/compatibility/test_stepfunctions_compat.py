@@ -1542,3 +1542,32 @@ class TestStepFunctionsAliasGapOps:
         sfn.delete_state_machine_alias(stateMachineAliasArn=alias_arn)
         sfn.delete_state_machine_version(stateMachineVersionArn=ver_arn)
         sfn.delete_state_machine(stateMachineArn=sm_arn)
+
+
+class TestStepFunctionsTestStateGapOp:
+    """Test TestState — uses sync- host prefix and returns 501."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("stepfunctions")
+
+    def test_test_state_not_implemented(self, client):
+        import boto3
+        from botocore.config import Config
+        from botocore.exceptions import ClientError
+
+        no_prefix_client = boto3.client(
+            "stepfunctions",
+            endpoint_url="http://localhost:4566",
+            region_name="us-east-1",
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+            config=Config(inject_host_prefix=False),
+        )
+        with pytest.raises(ClientError) as exc:
+            no_prefix_client.test_state(definition='{"Comment": "Test"}')
+        assert exc.value.response["Error"]["Code"] in (
+            "NotImplemented",
+            "InvalidDefinition",
+            "StateMachineDoesNotExist",
+        )
