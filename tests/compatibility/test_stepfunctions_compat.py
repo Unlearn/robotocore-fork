@@ -1502,3 +1502,43 @@ class TestStepFunctionsMissingGapOps:
         with pytest.raises(ClientError) as exc_info:
             sfn.redrive_execution(executionArn=fake_arn)
         assert exc_info.value.response["Error"]["Code"] == "ExecutionDoesNotExist"
+
+
+class TestStepFunctionsAliasGapOps:
+    """Tests for StateMachineAlias CRUD operations."""
+
+    def test_create_update_delete_alias(self, sfn):
+        """Full alias lifecycle: create, update, delete."""
+        import json as _json
+
+        sm = sfn.create_state_machine(
+            name=f"sm-alias-{uuid.uuid4().hex[:8]}",
+            definition=_json.dumps(
+                {
+                    "Comment": "test",
+                    "StartAt": "Pass",
+                    "States": {"Pass": {"Type": "Pass", "End": True}},
+                }
+            ),
+            roleArn="arn:aws:iam::123456789012:role/test-role",
+        )
+        sm_arn = sm["stateMachineArn"]
+        ver = sfn.publish_state_machine_version(stateMachineArn=sm_arn)
+        ver_arn = ver["stateMachineVersionArn"]
+
+        alias = sfn.create_state_machine_alias(
+            name="test-alias",
+            routingConfiguration=[{"stateMachineVersionArn": ver_arn, "weight": 100}],
+        )
+        alias_arn = alias["stateMachineAliasArn"]
+        assert "stateMachineAliasArn" in alias
+
+        update_resp = sfn.update_state_machine_alias(
+            stateMachineAliasArn=alias_arn,
+            routingConfiguration=[{"stateMachineVersionArn": ver_arn, "weight": 100}],
+        )
+        assert "updateDate" in update_resp
+
+        sfn.delete_state_machine_alias(stateMachineAliasArn=alias_arn)
+        sfn.delete_state_machine_version(stateMachineVersionArn=ver_arn)
+        sfn.delete_state_machine(stateMachineArn=sm_arn)

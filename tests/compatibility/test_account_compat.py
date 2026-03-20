@@ -171,3 +171,26 @@ class TestAccountNewOps:
         """DisableRegion disables a region."""
         resp = account.disable_region(RegionName="ap-southeast-2")
         assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+class TestAccountMissingGapOps:
+    """Tests for previously-missing Account operations."""
+
+    def test_put_account_name(self, account):
+        """PutAccountName updates the account name."""
+        resp = account.put_account_name(AccountName="My Test Account")
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_start_primary_email_update(self, account):
+        """StartPrimaryEmailUpdate initiates an email update."""
+        resp = account.start_primary_email_update(
+            AccountId="123456789012", PrimaryEmail="new@example.com"
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_accept_primary_email_update(self, account):
+        """AcceptPrimaryEmailUpdate completes the email update flow."""
+        resp = account.accept_primary_email_update(
+            AccountId="123456789012", Otp="123456", PrimaryEmail="new@example.com"
+        )
+        assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
