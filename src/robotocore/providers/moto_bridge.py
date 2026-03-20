@@ -102,6 +102,13 @@ def _get_moto_routing_table(service: str) -> Map:
             url_map.add(Rule("/", endpoint=handler, strict_slashes=False))
             continue
         url_map.add(Rule(url_path, endpoint=handler, strict_slashes=False))
+        # Also add a trailing-slash variant: Werkzeug's strict_slashes=False only
+        # prevents redirecting FROM trailing-slash TO non-trailing-slash, but
+        # rules with regex converters still fail to match the slash variant.
+        # Explicitly adding both versions ensures paths like /plans/{id}/versions/
+        # (sent by boto3) match the /plans/{id}/versions rule.
+        if not url_path.endswith("/"):
+            url_map.add(Rule(url_path + "/", endpoint=handler, strict_slashes=False))
 
     return url_map
 
