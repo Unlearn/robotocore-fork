@@ -1739,3 +1739,109 @@ class TestEksInsightsRefresh:
         with pytest.raises(ClientError) as exc_info:
             eks.describe_insights_refresh(clusterName="nonexistent-cluster")
         assert exc_info.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+
+class TestEKSMissingGapOps:
+    """Tests for EKS operations that were previously 501 or blocked by URL routing."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("eks")
+
+    @pytest.fixture
+    def cluster(self, client):
+        """Create and clean up a test EKS cluster."""
+        name = _unique("eks-gap-test")
+        client.create_cluster(
+            name=name,
+            roleArn="arn:aws:iam::123456789012:role/eks-role",
+            resourcesVpcConfig={},
+        )
+        yield name
+        try:
+            client.delete_cluster(name=name)
+        except Exception:
+            pass
+
+    def test_list_updates(self, client, cluster):
+        """ListUpdates returns a list of update IDs."""
+        resp = client.list_updates(name=cluster)
+        assert "updateIds" in resp
+        assert isinstance(resp["updateIds"], list)
+
+    def test_describe_update(self, client, cluster):
+        """DescribeUpdate returns update details for a fake update ID."""
+        resp = client.describe_update(name=cluster, updateId="fake-update-id")
+        assert "update" in resp
+        assert resp["update"]["id"] == "fake-update-id"
+
+    def test_register_cluster(self, client):
+        """RegisterCluster registers an external cluster."""
+        name = _unique("ext-cluster")
+        resp = client.register_cluster(
+            name=name,
+            connectorConfig={
+                "roleArn": "arn:aws:iam::123456789012:role/eks-connector",
+                "provider": "OTHER",
+            },
+        )
+        assert "cluster" in resp
+        assert resp["cluster"]["name"] == name
+
+    def test_associate_access_policy(self, client, cluster):
+        """AssociateAccessPolicy associates a policy with an access entry."""
+        principal_arn = "arn:aws:iam::123456789012:role/test-role"
+        client.create_access_entry(clusterName=cluster, principalArn=principal_arn)
+        try:
+            resp = client.associate_access_policy(
+                clusterName=cluster,
+                principalArn=principal_arn,
+                policyArn="arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy",
+                accessScope={"type": "cluster"},
+            )
+            assert "associatedAccessPolicy" in resp
+        finally:
+            client.delete_access_entry(clusterName=cluster, principalArn=principal_arn)
+
+    def test_describe_access_entry(self, client, cluster):
+        """DescribeAccessEntry returns access entry details."""
+        principal_arn = "arn:aws:iam::123456789012:role/describe-test-role"
+        client.create_access_entry(clusterName=cluster, principalArn=principal_arn)
+        try:
+            resp = client.describe_access_entry(clusterName=cluster, principalArn=principal_arn)
+            assert "accessEntry" in resp
+            assert resp["accessEntry"]["principalArn"] == principal_arn
+        finally:
+            client.delete_access_entry(clusterName=cluster, principalArn=principal_arn)
+
+    def test_list_associated_access_policies(self, client, cluster):
+        """ListAssociatedAccessPolicies returns associated policies."""
+        principal_arn = "arn:aws:iam::123456789012:role/list-policies-role"
+        client.create_access_entry(clusterName=cluster, principalArn=principal_arn)
+        try:
+            resp = client.list_associated_access_policies(
+                clusterName=cluster, principalArn=principal_arn
+            )
+            assert "associatedAccessPolicies" in resp
+        finally:
+            client.delete_access_entry(clusterName=cluster, principalArn=principal_arn)
+
+    def test_update_access_entry(self, client, cluster):
+        """UpdateAccessEntry updates an access entry."""
+        principal_arn = "arn:aws:iam::123456789012:role/update-entry-role"
+        client.create_access_entry(clusterName=cluster, principalArn=principal_arn)
+        try:
+            resp = client.update_access_entry(clusterName=cluster, principalArn=principal_arn)
+            assert "accessEntry" in resp
+        finally:
+            client.delete_access_entry(clusterName=cluster, principalArn=principal_arn)
+
+    def test_delete_access_entry(self, client, cluster):
+        """DeleteAccessEntry removes an access entry."""
+        principal_arn = "arn:aws:iam::123456789012:role/delete-entry-role"
+        client.create_access_entry(clusterName=cluster, principalArn=principal_arn)
+        client.delete_access_entry(clusterName=cluster, principalArn=principal_arn)
+        # Verify it's gone
+        with pytest.raises(ClientError) as exc_info:
+            client.describe_access_entry(clusterName=cluster, principalArn=principal_arn)
+        assert exc_info.value.response["Error"]["Code"] == "ResourceNotFoundException"

@@ -160,7 +160,15 @@ async def forward_to_moto(
     """Forward an AWS API request to the appropriate Moto backend."""
     body = await request.body()
 
-    raw_path = request.url.path
+    # Use the raw (percent-encoded) path from the ASGI scope for URL matching.
+    # Starlette's request.url.path decodes %2F to '/', which would break route
+    # matching against patterns like [^/]+ when ARNs (e.g. principalArn) are
+    # passed as URL path segments.
+    scope_raw = getattr(request, "scope", {}).get("raw_path", b"")
+    if scope_raw:
+        raw_path = scope_raw.decode("latin-1").split("?", 1)[0]
+    else:
+        raw_path = request.url.path
     try:
         dispatch = _get_dispatcher(service_name, raw_path)
     except Exception:  # noqa: BLE001
@@ -266,7 +274,11 @@ async def forward_to_moto_with_body(
     request: Request, service_name: str, body: bytes, account_id: str = DEFAULT_ACCOUNT_ID
 ) -> Response:
     """Forward to Moto with a custom body (for request body modifications)."""
-    raw_path = request.url.path
+    scope_raw = getattr(request, "scope", {}).get("raw_path", b"")
+    if scope_raw:
+        raw_path = scope_raw.decode("latin-1").split("?", 1)[0]
+    else:
+        raw_path = request.url.path
     try:
         dispatch = _get_dispatcher(service_name, raw_path)
     except Exception:  # noqa: BLE001
