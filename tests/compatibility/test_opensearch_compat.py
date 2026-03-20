@@ -1657,3 +1657,36 @@ class TestOpenSearchDataSourceOps:
         assert ds2 in names
         opensearch.delete_data_source(DomainName=domain, Name=ds1)
         opensearch.delete_data_source(DomainName=domain, Name=ds2)
+
+
+class TestOpenSearchMissingGapOps:
+    """Tests for previously untested OpenSearch operations."""
+
+    @pytest.fixture
+    def opensearch(self):
+        return make_client("opensearch")
+
+    def test_get_upgrade_history(self, opensearch):
+        """get_upgrade_history returns UpgradeHistories key."""
+        response = opensearch.get_upgrade_history(DomainName="fake-domain")
+        assert "UpgradeHistories" in response
+
+    def test_get_upgrade_status(self, opensearch):
+        """get_upgrade_status returns UpgradeStep key."""
+        response = opensearch.get_upgrade_status(DomainName="fake-domain")
+        assert "UpgradeStep" in response
+
+    def test_cancel_service_software_update(self, opensearch):
+        """cancel_service_software_update returns ServiceSoftwareOptions key."""
+        response = opensearch.cancel_service_software_update(DomainName="fake-domain")
+        assert "ServiceSoftwareOptions" in response
+
+    def test_start_service_software_update(self, opensearch):
+        """start_service_software_update returns ServiceSoftwareOptions key."""
+        response = opensearch.start_service_software_update(DomainName="fake-domain")
+        assert "ServiceSoftwareOptions" in response
+
+    def test_list_vpc_endpoint_access(self, opensearch):
+        """list_vpc_endpoint_access returns AuthorizedPrincipalList key."""
+        response = opensearch.list_vpc_endpoint_access(DomainName="fake-domain")
+        assert "AuthorizedPrincipalList" in response

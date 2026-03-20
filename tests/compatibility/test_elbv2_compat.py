@@ -1202,3 +1202,41 @@ class TestELBv2RuleAdvanced:
             assert rule["Actions"][0]["FixedResponseConfig"]["StatusCode"] == "200"
         finally:
             elbv2.delete_rule(RuleArn=rule_arn)
+
+
+class TestELBv2MissingGapOps:
+    """Tests for previously untested ELBv2 operations."""
+
+    @pytest.fixture
+    def elbv2(self):
+        return make_client("elbv2")
+
+    def test_describe_trust_stores(self, elbv2):
+        """describe_trust_stores returns TrustStores key."""
+        response = elbv2.describe_trust_stores()
+        assert "TrustStores" in response
+
+    def test_create_trust_store(self, elbv2):
+        """create_trust_store creates a trust store and returns it."""
+        name = f"ts-{uuid.uuid4().hex[:8]}"
+        response = elbv2.create_trust_store(
+            Name=name,
+            CaCertificatesBundleS3Bucket="test",
+            CaCertificatesBundleS3Key="test.pem",
+        )
+        assert "TrustStores" in response
+        assert response["TrustStores"][0]["Name"] == name
+
+    def test_get_resource_policy(self, elbv2):
+        """get_resource_policy returns Policy key."""
+        response = elbv2.get_resource_policy(
+            ResourceArn="arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/test/abc"
+        )
+        assert "Policy" in response
+
+    def test_modify_capacity_reservation(self, elbv2):
+        """modify_capacity_reservation returns CapacityReservationState key."""
+        response = elbv2.modify_capacity_reservation(
+            LoadBalancerArn="arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/test/abc"
+        )
+        assert "CapacityReservationState" in response

@@ -1308,3 +1308,46 @@ class TestGreengrassOperations:
         finally:
             greengrass.delete_group(GroupId=group["Id"])
             greengrass.delete_core_definition(CoreDefinitionId=cd["Id"])
+
+
+class TestGreengrassMissingGapOps:
+    """Tests for previously untested Greengrass operations."""
+
+    @pytest.fixture
+    def greengrass(self):
+        return make_client("greengrass")
+
+    def test_tag_and_list_and_untag_resource(self, greengrass):
+        """tag_resource, list_tags_for_resource, untag_resource on a group ARN."""
+        arn = "arn:aws:greengrass:us-east-1:123456789012:groups/fake"
+        greengrass.tag_resource(ResourceArn=arn, tags={"env": "test"})
+        response = greengrass.list_tags_for_resource(ResourceArn=arn)
+        assert "tags" in response
+        greengrass.untag_resource(ResourceArn=arn, TagKeys=["env"])
+
+    def test_get_service_role_for_account(self, greengrass):
+        """get_service_role_for_account returns RoleArn."""
+        response = greengrass.get_service_role_for_account()
+        assert "RoleArn" in response
+
+    def test_associate_service_role_to_account(self, greengrass):
+        """associate_service_role_to_account succeeds."""
+        response = greengrass.associate_service_role_to_account(
+            RoleArn="arn:aws:iam::123456789012:role/test"
+        )
+        assert response["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_disassociate_service_role_from_account(self, greengrass):
+        """disassociate_service_role_from_account succeeds."""
+        response = greengrass.disassociate_service_role_from_account()
+        assert response["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+    def test_list_bulk_deployments(self, greengrass):
+        """list_bulk_deployments returns BulkDeployments key."""
+        response = greengrass.list_bulk_deployments()
+        assert "BulkDeployments" in response
+
+    def test_get_connectivity_info(self, greengrass):
+        """get_connectivity_info returns ConnectivityInfo for a thing."""
+        response = greengrass.get_connectivity_info(ThingName="fake-thing")
+        assert "ConnectivityInfo" in response
