@@ -568,7 +568,6 @@ class ASLExecutor:
 
         try:
             from moto.backends import get_backend  # noqa: I001
-
             from moto.core import DEFAULT_ACCOUNT_ID
 
             acct = self.account_id if self.account_id != "123456789012" else DEFAULT_ACCOUNT_ID
@@ -650,7 +649,6 @@ class ASLExecutor:
         """DynamoDB integration via Moto backend."""
         try:
             from moto.backends import get_backend  # noqa: I001
-
             from moto.core import DEFAULT_ACCOUNT_ID
 
             acct = self.account_id if self.account_id != "123456789012" else DEFAULT_ACCOUNT_ID

@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 def _moto_backend(service: str, account_id: str, region: str):
     """Get a Moto backend instance."""
     from moto.backends import get_backend  # noqa: I001
-
     from moto.core import DEFAULT_ACCOUNT_ID
 
     acct = account_id if account_id != "123456789012" else DEFAULT_ACCOUNT_ID
@@ -24,7 +23,6 @@ def _moto_backend(service: str, account_id: str, region: str):
 def _moto_global_backend(service: str, account_id: str):
     """Get a Moto backend instance for global services (IAM, S3)."""
     from moto.backends import get_backend  # noqa: I001
-
     from moto.core import DEFAULT_ACCOUNT_ID
 
     acct = account_id if account_id != "123456789012" else DEFAULT_ACCOUNT_ID

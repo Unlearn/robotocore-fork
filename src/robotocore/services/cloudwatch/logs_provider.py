@@ -132,7 +132,6 @@ async def handle_logs_request(request: Request, region: str, account_id: str) ->
             resource_arn = resource_arn[:-2]
         try:
             from moto.backends import get_backend  # noqa: I001
-
             from moto.core import DEFAULT_ACCOUNT_ID
 
             acct = account_id or DEFAULT_ACCOUNT_ID
@@ -150,7 +149,6 @@ async def handle_logs_request(request: Request, region: str, account_id: str) ->
         tags = params.get("tags", {})
         try:
             from moto.backends import get_backend  # noqa: I001
-
             from moto.core import DEFAULT_ACCOUNT_ID
 
             acct = account_id or DEFAULT_ACCOUNT_ID
@@ -168,7 +166,6 @@ async def handle_logs_request(request: Request, region: str, account_id: str) ->
         tag_keys = params.get("tagKeys", [])
         try:
             from moto.backends import get_backend  # noqa: I001
-
             from moto.core import DEFAULT_ACCOUNT_ID
 
             acct = account_id or DEFAULT_ACCOUNT_ID
@@ -199,7 +196,6 @@ async def _filter_log_events_with_prefix(
 
     try:
         from moto.backends import get_backend  # noqa: I001
-
         from moto.core import DEFAULT_ACCOUNT_ID
 
         acct = account_id or DEFAULT_ACCOUNT_ID
@@ -262,7 +258,6 @@ def _associate_kms_key(params: dict, region: str, account_id: str) -> dict:
 
     try:
         from moto.backends import get_backend  # noqa: I001
-
         from moto.core import DEFAULT_ACCOUNT_ID
 
         acct = account_id or DEFAULT_ACCOUNT_ID
@@ -289,7 +284,6 @@ def _disassociate_kms_key(params: dict, region: str, account_id: str) -> dict:
 
     try:
         from moto.backends import get_backend  # noqa: I001
-
         from moto.core import DEFAULT_ACCOUNT_ID
 
         acct = account_id or DEFAULT_ACCOUNT_ID
