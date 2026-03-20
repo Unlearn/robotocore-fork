@@ -1210,3 +1210,57 @@ class TestElastiCacheCopySnapshot:
                 pass  # best-effort cleanup
             elasticache.delete_snapshot(SnapshotName=snap_name)
             elasticache.delete_replication_group(ReplicationGroupId=rg_id)
+
+
+class TestElastiCacheGapOps:
+    """Tests for previously-missing ElastiCache operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("elasticache")
+
+    @pytest.fixture
+    def cluster(self, client):
+        cluster_id = _unique("ec")
+        client.create_cache_cluster(
+            CacheClusterId=cluster_id,
+            NumCacheNodes=1,
+            CacheNodeType="cache.t3.micro",
+            Engine="redis",
+        )
+        yield cluster_id
+        try:
+            client.delete_cache_cluster(CacheClusterId=cluster_id)
+        except ClientError:
+            pass
+
+    def test_describe_engine_default_parameters(self, client):
+        """DescribeEngineDefaultParameters returns EngineDefaults."""
+        resp = client.describe_engine_default_parameters(CacheParameterGroupFamily="redis7")
+        assert "EngineDefaults" in resp
+        assert resp["EngineDefaults"]["CacheParameterGroupFamily"] == "redis7"
+
+    def test_describe_reserved_cache_nodes(self, client):
+        """DescribeReservedCacheNodes returns a list."""
+        resp = client.describe_reserved_cache_nodes()
+        assert "ReservedCacheNodes" in resp
+
+    def test_describe_reserved_cache_nodes_offerings(self, client):
+        """DescribeReservedCacheNodesOfferings returns a list."""
+        resp = client.describe_reserved_cache_nodes_offerings()
+        assert "ReservedCacheNodesOfferings" in resp
+
+    def test_list_allowed_node_type_modifications(self, client):
+        """ListAllowedNodeTypeModifications returns scale up/down lists."""
+        resp = client.list_allowed_node_type_modifications()
+        assert "ScaleUpModifications" in resp
+        assert "ScaleDownModifications" in resp
+
+    def test_reboot_cache_cluster(self, client, cluster):
+        """RebootCacheCluster returns the cluster."""
+        resp = client.reboot_cache_cluster(
+            CacheClusterId=cluster,
+            CacheNodeIdsToReboot=["0001"],
+        )
+        assert "CacheCluster" in resp
+        assert resp["CacheCluster"]["CacheClusterId"] == cluster

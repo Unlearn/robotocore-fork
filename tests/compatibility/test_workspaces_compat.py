@@ -1072,3 +1072,21 @@ class TestWorkspacesTagOps:
             assert isinstance(resp["TagList"], list)
         except Exception as e:
             assert hasattr(e, "response") or "error" in str(e).lower()
+
+
+class TestWorkspacesGapOps:
+    """Tests for previously-missing Workspaces operations."""
+
+    @pytest.fixture
+    def client(self):
+        return make_client("workspaces")
+
+    def test_import_workspace_image(self, client):
+        """ImportWorkspaceImage returns an ImageId."""
+        resp = client.import_workspace_image(
+            Ec2ImageId="ami-12345678",
+            IngestionProcess="BYOL_REGULAR",
+            ImageName="test-image",
+            ImageDescription="A test image",
+        )
+        assert "ImageId" in resp
