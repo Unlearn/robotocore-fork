@@ -68,7 +68,14 @@ class TestSQSBasicOperations:
         sqs.send_message(QueueUrl=queue_url, MessageBody="delete me")
         response = sqs.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=1)
         receipt = response["Messages"][0]["ReceiptHandle"]
-        sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt)
+
+        # Delete the message
+        delete_response = sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt)
+        assert delete_response["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+        # Verify message is gone - receive should return empty or different message
+        after_delete = sqs.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=1, WaitTimeSeconds=1)
+        assert "Messages" not in after_delete or len(after_delete.get("Messages", [])) == 0
 
     def test_get_queue_attributes(self, sqs, queue_url):
         response = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["All"])
