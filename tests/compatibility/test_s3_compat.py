@@ -607,6 +607,26 @@ class TestS3PresignedUrls:
         assert resp.status == 200
         assert resp.read() == b"hello presigned"
 
+    def test_presigned_get_url_applies_response_content_disposition(self, s3, bucket):
+        """Test that presigned GET URLs honor response header override params."""
+        s3.put_object(Bucket=bucket, Key="presigned-disposition.txt", Body=b"download me")
+
+        url = s3.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": bucket,
+                "Key": "presigned-disposition.txt",
+                "ResponseContentDisposition": 'attachment; filename="download.txt"',
+            },
+            ExpiresIn=3600,
+        )
+
+        req = URLRequest(url, method="GET")
+        resp = urlopen(req)
+        assert resp.status == 200
+        assert resp.headers.get("Content-Disposition") == 'attachment; filename="download.txt"'
+        assert resp.read() == b"download me"
+
     def test_presigned_put_url(self, s3, bucket):
         """Test generating and using a presigned PUT URL."""
         url = s3.generate_presigned_url(

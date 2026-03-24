@@ -1303,6 +1303,26 @@ class TestPresignedUrlProvider:
         mock_forward.assert_called_once()
 
     @patch("robotocore.services.s3.provider.forward_to_moto")
+    async def test_presigned_get_applies_response_header_overrides(self, mock_forward):
+        mock_forward.return_value = Response(content=b"object-data", status_code=200)
+        qs = (
+            b"X-Amz-Algorithm=AWS4-HMAC-SHA256"
+            b"&X-Amz-Credential=AKID/20260101/us-east-1/s3/aws4_request"
+            b"&X-Amz-Date=20260101T000000Z"
+            b"&X-Amz-Expires=3600"
+            b"&X-Amz-SignedHeaders=host"
+            b"&X-Amz-Signature=abc123"
+            b"&response-content-disposition=attachment%3B+filename%3D%22unit.txt%22"
+            b"&response-content-type=text%2Fplain"
+        )
+        req = _make_request("GET", "/mybucket/mykey", query_string=qs)
+        resp = await handle_s3_request(req, "us-east-1", "123456789012")
+
+        assert resp.status_code == 200
+        assert resp.headers["content-disposition"] == 'attachment; filename="unit.txt"'
+        assert resp.headers["content-type"] == "text/plain"
+
+    @patch("robotocore.services.s3.provider.forward_to_moto")
     async def test_presigned_put_preserves_body(self, mock_forward):
         mock_forward.return_value = Response(
             content=b"", status_code=200, headers={"ETag": '"abc"'}
