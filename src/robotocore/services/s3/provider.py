@@ -66,6 +66,15 @@ _SIGV2_PARAMS = {
 # All signature-related parameters to strip
 _ALL_SIG_PARAMS = _SIGV4_PARAMS | _SIGV2_PARAMS
 
+_RESPONSE_HEADER_OVERRIDES = {
+    "response-cache-control": "Cache-Control",
+    "response-content-disposition": "Content-Disposition",
+    "response-content-encoding": "Content-Encoding",
+    "response-content-language": "Content-Language",
+    "response-content-type": "Content-Type",
+    "response-expires": "Expires",
+}
+
 # ---------------------------------------------------------------------------
 # In-memory stores for CORS, lifecycle, and object lock
 # ---------------------------------------------------------------------------
@@ -158,6 +167,24 @@ def _strip_presigned_params(request: Request, body: bytes | None = None) -> Requ
         return new_req
 
     return Request(scope, request.receive)
+
+
+def _apply_response_header_overrides(request: Request, response: Response, path: str) -> Response:
+    """Apply S3 response header override query params to object GET/HEAD responses."""
+    if response.status_code not in (200, 206):
+        return response
+
+    match = _PATH_RE.match(path)
+    if not match or not match.group(2):
+        return response
+
+    for query_param, header_name in _RESPONSE_HEADER_OVERRIDES.items():
+        value = request.query_params.get(query_param)
+        if value is None:
+            continue
+        response.headers[header_name] = value
+
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -633,6 +660,7 @@ async def handle_s3_request(request: Request, region: str, account_id: str) -> R
 
     # Forward to Moto for actual S3 operation
     response = await forward_to_moto(request, "s3", account_id=account_id)
+    response = _apply_response_header_overrides(request, response, path)
 
     # Post-response cleanup and event firing
     if response.status_code in (200, 202, 204):
